@@ -7,13 +7,15 @@ type Props = Omit<ComponentProps<'input'>, 'defaultValue'> & { format: Format; d
 export const formatValue = (value: string, format: Format): string => {
   const text = value.normalize('NFKC').trim();
   if (!text) return '';
+
   if (format === 'money') {
     const raw = text.replaceAll(',', '');
     if (!/^\d*(\.\d{0,2})?$/.test(raw) || !/\d/.test(raw)) return text;
     const [whole, fraction = ''] = raw.split('.');
-    const integer = (whole || '0').replace(/^0+(?=\d)/, '');
+    const integer                = (whole || '0').replace(/^0+(?=\d)/, '');
     return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction.padEnd(2, '0')}`;
   }
+
   const digits = text.replace(/[\s-]/g, '');
   if (format === 'business') return /^\d{10}$/.test(digits) ? digits.replace(/^(\d{3})(\d{2})(\d{5})$/, '$1-$2-$3') : text;
   if (/^02\d{7,8}$/.test(digits)) return digits.replace(/^(02)(\d{3,4})(\d{4})$/, '$1-$2-$3');

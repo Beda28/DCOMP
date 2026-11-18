@@ -51,11 +51,12 @@ const Header = () => {
   const { user, ready }       = useSession();
   const [pending, setPending] = useState(false);
   const [error, setError]     = useState('');
-  const navigate             = useNavigate();
+  const navigate              = useNavigate();
 
   const signOut = async (): Promise<void> => {
     setPending(true);
     setError('');
+
     try {
       await logout();
       navigate('/', { replace: true });
@@ -70,6 +71,8 @@ const Header = () => {
         <Group>
           <MenuLink to="/" end>DCOMP</MenuLink>
           {user && <><MenuLink to="/partners">거래처</MenuLink><MenuLink to="/items">품목</MenuLink></>}
+          {user && <MenuLink to="/settings/company">회사 정보</MenuLink>}
+          {user?.role === 'ADMIN' && <MenuLink to="/settings/users">직원 관리</MenuLink>}
           <MenuLink to="/health">헬스체크</MenuLink>
         </Group>
         <Group>
@@ -81,7 +84,7 @@ const Header = () => {
           ) : (
             <>
               <MenuLink to="/login">로그인</MenuLink>
-              <MenuLink to="/signup">회원가입</MenuLink>
+              <MenuLink to="/start">회사 등록</MenuLink>
             </>
           )}
         </Group>

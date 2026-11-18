@@ -11,7 +11,7 @@ const integer = ({ value }: { value: unknown }): unknown => (
   typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value
 );
 
-export class ListQueryDto {
+export class SearchQueryDto {
   @Transform(integer)
   @IsInt()
   @Min(1)
@@ -29,7 +29,9 @@ export class ListQueryDto {
   @IsString()
   @MaxLength(160)
   q?: string;
+}
 
+export class ListQueryDto extends SearchQueryDto {
   @ValidateIf((_, value) => value !== undefined)
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: 'ACTIVE' | 'INACTIVE';

@@ -6,8 +6,8 @@ import { ItemsController } from './items.controller.js';
 import { ItemsService }    from './items.service.js';
 
 @Module({
-  imports: [AuthModule, TypeOrmModule.forFeature([Item])],
+  imports:     [AuthModule, TypeOrmModule.forFeature([Item])],
   controllers: [ItemsController],
-  providers: [ItemsService],
+  providers:   [ItemsService],
 })
 export class ItemsModule {}

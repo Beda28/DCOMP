@@ -6,7 +6,6 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
-    "seed:admin": "node dist/database/seed.js",
     "test": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:database": "node --test test/database.test.mjs"
   },

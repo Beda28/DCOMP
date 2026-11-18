@@ -5,6 +5,9 @@ export class Partner {
   @PrimaryGeneratedColumn({ unsigned: true })
   id!: number;
 
+  @Column({ name: 'organization_id', type: 'int', unsigned: true })
+  organizationId!: number;
+
   @Column({ length: 160 })
   name!: string;
 

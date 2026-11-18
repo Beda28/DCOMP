@@ -1,15 +1,15 @@
 import 'reflect-metadata';
-import assert                    from 'node:assert/strict';
-import test                      from 'node:test';
-import { createHash }            from 'node:crypto';
-import { execFileSync }          from 'node:child_process';
-import { NestFactory }           from '@nestjs/core';
-import { JwtService }            from '@nestjs/jwt';
-import { DataSource }            from 'typeorm';
-import { AppModule }             from '../dist/app.module.js';
-import { configureApp }          from '../dist/app.config.js';
-import { AuthService }           from '../dist/auth/auth.service.js';
-import { RedisService }          from '../dist/redis/redis.service.js';
+import assert           from 'node:assert/strict';
+import test             from 'node:test';
+import { createHash }   from 'node:crypto';
+import { NestFactory }  from '@nestjs/core';
+import { JwtService }   from '@nestjs/jwt';
+import { DataSource }   from 'typeorm';
+import { AppModule }    from '../dist/app.module.js';
+import { configureApp } from '../dist/app.config.js';
+import { AuthService }  from '../dist/auth/auth.service.js';
+import { hash }         from '../dist/auth/password.js';
+import { RedisService } from '../dist/redis/redis.service.js';
 
 if (process.env.DB_NAME !== 'dcomp_test') throw new Error('전용 dcomp_test DB에서만 실행할 수 있습니다.');
 
@@ -18,10 +18,6 @@ const password = 'test-admin-password-123';
 const digest   = value => createHash('sha256').update(value).digest('hex');
 
 test('인증 API와 세션 폐기', async context => {
-  const seedOptions = { env: { ...process.env, ADMIN_USERNAME: username, ADMIN_PASSWORD: password }, stdio: 'pipe' };
-  execFileSync(process.execPath, ['dist/database/seed.js'], seedOptions);
-  assert.throws(() => execFileSync(process.execPath, ['dist/database/seed.js'], seedOptions));
-
   const app = await NestFactory.create(AppModule, { logger: false });
   configureApp(app);
   await app.listen(0, '0.0.0.0');
@@ -31,7 +27,11 @@ test('인증 API와 세션 폐기', async context => {
   const jwt      = app.get(JwtService);
   const redis    = app.get(RedisService);
   const base     = await app.getUrl();
-  const [user]   = await database.query('SELECT id, password_hash FROM users WHERE username = ?', [username]);
+  const organizationId = (await database.query("INSERT INTO organizations (name, code) VALUES ('Auth test', '000123')")).insertId;
+  const companyCode = '000123';
+  const passwordHash = await hash(password);
+  await database.query("INSERT INTO users (organization_id, username, password_hash, role) VALUES (?, ?, ?, 'ADMIN')", [organizationId, username, passwordHash]);
+  const [user] = await database.query('SELECT id, password_hash FROM users WHERE organization_id = ?', [organizationId]);
 
   const request = async (path, { body, cookie, access, headers = {}, method = path === 'me' ? 'GET' : 'POST' } = {}) => {
     const response = await fetch(`${base}/api/v1/auth/${path}`, {
@@ -43,7 +43,7 @@ test('인증 API와 세션 폐기', async context => {
         ...(access ? { Authorization: `Bearer ${access}` } : {}),
         ...headers,
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(path === 'login' ? { companyCode, ...body } : body) : undefined,
     });
     const text = await response.text();
     return {
@@ -52,7 +52,7 @@ test('인증 API와 세션 폐기', async context => {
     };
   };
   const session = async () => {
-    const result = await auth.login({ username, password });
+    const result = await auth.login({ companyCode, username, password });
     return { cookie: `refresh_token=${result.refreshToken}`, access: result.data.accessToken };
   };
   const expectError = (response, status, code) => {
@@ -72,44 +72,17 @@ test('인증 API와 세션 폐기', async context => {
       expectError(await request('me'), 401, 'UNAUTHORIZED');
     });
 
-    await context.test('아이디 회원가입, 비밀번호 길이, 관리자 권한 주입 차단', async () => {
-      expectError(await request('signup', { body: { username: 'new_staff', password: 'short' } }), 400, 'VALIDATION_ERROR');
-      expectError(await request('signup', { body: { email: 'staff@example.com', password } }), 400, 'VALIDATION_ERROR');
-      expectError(await request('signup', { body: { username: 'injected_admin', password, role: 'ADMIN' } }), 400, 'VALIDATION_ERROR');
-      expectError(await request('signup', { body: { username: 'injected_status', password, status: 'ACTIVE' } }), 400, 'VALIDATION_ERROR');
-      const result = await request('signup', { body: { username: 'New_Staff', password } });
-      assert.equal(result.status, 201);
-      assert.deepEqual(Object.keys(result.body.data).sort(), ['id', 'role', 'username']);
-      assert.equal(result.body.data.username, 'new_staff');
-      assert.equal(result.body.data.role, 'STAFF');
-      assert.equal(result.cookie, undefined);
-      expectError(await request('signup', { body: { username: 'NEW_STAFF', password } }), 409, 'USERNAME_TAKEN');
-
-      const login = await request('login', { body: { username: 'new_staff', password } });
-      assert.equal(login.status, 200);
-      assert.equal(login.body.data.user.role, 'STAFF');
-      assert.equal((await request('me', { access: login.body.data.accessToken })).body.data.username, 'new_staff');
-      const [row] = await database.query('SELECT password_hash, role FROM users WHERE username = ?', ['new_staff']);
-      assert.notEqual(row.password_hash, password);
-      assert.equal(row.role, 'STAFF');
-      assert.equal((await database.query('SELECT id FROM users WHERE username IN (?, ?)', ['injected_admin', 'injected_status'])).length, 0);
-    });
-
-    await context.test('같은 아이디의 동시 회원가입은 한 계정만 생성', async () => {
-      const replies = await Promise.all([
-        request('signup', { body: { username: 'race_staff', password } }),
-        request('signup', { body: { username: 'RACE_STAFF', password } }),
-      ]);
-      assert.deepEqual(replies.map(reply => reply.status).sort(), [201, 409]);
-      const [row] = await database.query('SELECT COUNT(*) AS total FROM users WHERE username = ?', ['race_staff']);
-      assert.equal(Number(row.total), 1);
+    await context.test('공개 직원 가입 제거와 회사 코드 필수 입력', async () => {
+      assert.equal((await request('signup', { body: { username, password } })).status, 404);
+      expectError(await request('login', { body: { companyCode: undefined, username, password } }), 400, 'VALIDATION_ERROR');
+      expectError(await request('login', { body: { companyCode: '999999', username, password } }), 401, 'INVALID_CREDENTIALS');
     });
 
     let initial;
     await context.test('관리자 로그인, JWT 15분, HttpOnly 쿠키 7일, 해시만 저장', async () => {
       initial = await request('login', { body: { username: username.toUpperCase(), password } });
       assert.equal(initial.status, 200);
-      assert.deepEqual(initial.body.data.user, { id: user.id, username, role: 'ADMIN' });
+      assert.deepEqual(initial.body.data.user, { id: user.id, organizationId, username, role: 'ADMIN' });
       assert.equal(initial.body.data.expiresIn, 900);
       assert.equal(initial.headers.get('cache-control'), 'no-store');
       const cookie = initial.headers.get('set-cookie');
@@ -128,7 +101,7 @@ test('인증 API와 세션 폐기', async context => {
       assert.notEqual(row.refresh_token_hash, raw);
       const me = await request('me', { access: initial.body.data.accessToken });
       assert.equal(me.status, 200);
-      assert.deepEqual(me.body.data, { id: user.id, username, role: 'ADMIN', status: 'ACTIVE' });
+      assert.deepEqual(me.body.data, { id: user.id, organizationId, username, role: 'ADMIN', status: 'ACTIVE' });
     });
 
     await context.test('직원 권한과 비활성 계정 차단', async () => {
@@ -138,7 +111,7 @@ test('인증 API와 세션 폐기', async context => {
       assert.equal((await request('me', { access: staff.body.data.accessToken })).body.data.role, 'STAFF');
 
       await database.query("UPDATE users SET status = 'DISABLED' WHERE id = ?", [user.id]);
-      expectError(await request('login', { body: { username, password } }), 423, 'ACCOUNT_DISABLED');
+      expectError(await request('login', { body: { username, password } }), 401, 'INVALID_CREDENTIALS');
       expectError(await request('me', { access: staff.body.data.accessToken }), 401, 'UNAUTHORIZED');
       expectError(await request('refresh', { cookie: staff.cookie }), 401, 'SESSION_REVOKED');
       await database.query("UPDATE users SET status = 'ACTIVE', role = 'ADMIN' WHERE id = ?", [user.id]);
@@ -221,9 +194,9 @@ test('인증 API와 세션 폐기', async context => {
     });
   }
   finally {
-    const names = [username, 'new_staff', 'race_staff'];
-    await database.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE username IN (?, ?, ?))', names);
-    await database.query('DELETE FROM users WHERE username IN (?, ?, ?)', names);
+    await database.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE organization_id = ?)', [organizationId]);
+    await database.query('DELETE FROM users WHERE organization_id = ?', [organizationId]);
+    await database.query('DELETE FROM organizations WHERE id = ?', [organizationId]);
     await app.close();
   }
 });

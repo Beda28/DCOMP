@@ -1,14 +1,15 @@
-import { HttpException, Injectable }    from '@nestjs/common';
-import { JwtService }                   from '@nestjs/jwt';
-import { InjectRepository }             from '@nestjs/typeorm';
-import { randomUUID }                   from 'node:crypto';
-import { QueryFailedError, Repository } from 'typeorm';
-import { RedisService }                 from '../redis/redis.service.js';
-import { apiError }                     from '../common/api-error.js';
-import { SessionService }               from './session.service.js';
-import { User, type Profile }           from './user.entity.js';
-import { hash, verify }                 from './password.js';
-import type { LoginDto, SignupDto }     from './auth.dto.js';
+import { HttpException, Injectable } from '@nestjs/common';
+import { JwtService }         from '@nestjs/jwt';
+import { InjectRepository }   from '@nestjs/typeorm';
+import { randomUUID }         from 'node:crypto';
+import { Repository }         from 'typeorm';
+import { RedisService }       from '../redis/redis.service.js';
+import { apiError }           from '../common/api-error.js';
+import { SessionService }     from './session.service.js';
+import { User, type Profile } from './user.entity.js';
+import { verify }             from './password.js';
+import type { LoginDto }      from './auth.dto.js';
+import { Organization }       from '../organizations/organization.entity.js';
 
 type AccessClaims = { sub: string; sid: string; jti: string; type: string; exp: number };
 
@@ -16,6 +17,7 @@ type AccessClaims = { sub: string; sid: string; jti: string; type: string; exp: 
 export class AuthService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(Organization) private readonly organizations: Repository<Organization>,
     private readonly jwt:      JwtService,
     private readonly sessions: SessionService,
     private readonly redis:    RedisService,
@@ -34,32 +36,20 @@ export class AuthService {
     return { accessToken, expiresIn: 900 };
   }
 
-  async signup(data: SignupDto) {
-    const passwordHash = await hash(data.password);
-    return this.store(async () => {
-      const user = this.users.create({ username: data.username, passwordHash, role: 'STAFF', status: 'ACTIVE' });
-      try { await this.users.save(user); }
-      catch (error) {
-        if (error instanceof QueryFailedError && error.driverError.code === 'ER_DUP_ENTRY') {
-          throw apiError(409, 'USERNAME_TAKEN', '이미 사용 중인 아이디입니다.');
-        }
-        throw error;
-      }
-      return { data: { id: user.id, username: user.username, role: user.role } };
-    });
-  }
-
   async login(data: LoginDto) {
-    const user = await this.store(() => this.users.findOne({
-      where: { username: data.username }, select: { id: true, username: true, role: true, status: true, passwordHash: true },
-    }));
+    const organization = await this.store(() => this.organizations.findOneBy({ code: data.companyCode }));
+    const user = organization ? await this.store(() => this.users.findOne({
+      where: { organizationId: organization.id, username: data.username },
+      select: { id: true, organizationId: true, username: true, role: true, status: true, passwordHash: true },
+    })) : null;
     const valid = await verify(data.password, user?.passwordHash);
-    if (!user || !valid) throw apiError(401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호를 확인해주세요.');
-    if (user.status !== 'ACTIVE') throw apiError(423, 'ACCOUNT_DISABLED', '비활성화된 계정입니다.');
+    if (!user || !valid || user.status !== 'ACTIVE' || organization?.status !== 'ACTIVE') {
+      throw apiError(401, 'INVALID_CREDENTIALS', '회사 코드, 아이디 또는 비밀번호를 확인해주세요.');
+    }
 
     return this.store(async () => {
-      const session = await this.sessions.create(user.id);
-      const profile = { id: session.user.id, username: session.user.username, role: session.user.role };
+      const session = await this.sessions.create(user.id, user.passwordHash);
+      const profile = { id: session.user.id, organizationId: session.user.organizationId, username: session.user.username, role: session.user.role };
       return { data: { ...await this.issue(session.user, session.familyId), user: profile }, refreshToken: session.token };
     });
   }
@@ -90,10 +80,11 @@ export class AuthService {
     return this.store(async () => {
       if (await this.redis.accessDenied(data.jti)) throw apiError(401, 'UNAUTHORIZED', '종료된 세션입니다.');
 
-      const user   = await this.users.findOneBy({ id: Number(data.sub) });
-      const active = await this.sessions.active(Number(data.sub), data.sid);
-      if (!user || user.status !== 'ACTIVE' || !active) throw apiError(401, 'UNAUTHORIZED', '다시 로그인해주세요.');
-      return { id: user.id, username: user.username, role: user.role, status: user.status };
+      const user         = await this.users.findOneBy({ id: Number(data.sub) });
+      const active       = await this.sessions.active(Number(data.sub), data.sid);
+      const organization = user ? await this.organizations.findOneBy({ id: user.organizationId, status: 'ACTIVE' }) : null;
+      if (!user || user.status !== 'ACTIVE' || !active || !organization) throw apiError(401, 'UNAUTHORIZED', '다시 로그인해주세요.');
+      return { id: user.id, organizationId: user.organizationId, username: user.username, role: user.role, status: user.status };
     });
   }
 

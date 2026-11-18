@@ -10,12 +10,13 @@ import { AuthGuard }       from './auth.guard.js';
 import { OriginGuard }     from './origin.guard.js';
 import { RolesGuard }      from './roles.guard.js';
 import { User }            from './user.entity.js';
+import { Organization }    from '../organizations/organization.entity.js';
 import { AuthSession }     from './auth-session.entity.js';
 
 @Module({
   imports: [
     RedisModule,
-    TypeOrmModule.forFeature([User, AuthSession]),
+    TypeOrmModule.forFeature([User, AuthSession, Organization]),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     JwtModule.registerAsync({
       useFactory: () => {
@@ -31,6 +32,6 @@ import { AuthSession }     from './auth-session.entity.js';
   ],
   controllers: [AuthController],
   providers:   [AuthService, SessionService, AuthGuard, OriginGuard, RolesGuard],
-  exports:     [AuthGuard, AuthService, OriginGuard, RolesGuard],
+  exports:     [AuthGuard, AuthService, OriginGuard, RolesGuard, ThrottlerModule],
 })
 export class AuthModule {}

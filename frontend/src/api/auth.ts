@@ -1,19 +1,15 @@
 import axios         from 'axios';
 import client, { refreshAccessToken } from './client';
-import { clearSession, finishRestore, getRevision, lockSession, setToken, setUser } from './session';
+import { clearSession, finishRestore, getRevision, lockSession, notifyLogin, setToken, setUser } from './session';
 import type { User } from './session';
 
 let restoring: Promise<void> | null = null;
 
-export const signup = async (username: string, password: string): Promise<User> => {
-  const response = await client.post<{ data: User }>('/auth/signup', { username, password });
-  return response.data.data;
-};
-
-export const login = (username: string, password: string): Promise<void> => lockSession(async () => {
-  const response = await client.post<{ data: { accessToken: string; user: User } }>('/auth/login', { username, password });
+export const login = (companyCode: string, username: string, password: string): Promise<void> => lockSession(async () => {
+  const response = await client.post<{ data: { accessToken: string; user: User } }>('/auth/login', { companyCode, username, password });
   setToken(response.data.data.accessToken);
   setUser(response.data.data.user);
+  notifyLogin();
 });
 
 export const restore = (): Promise<void> => {

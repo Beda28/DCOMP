@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Header, HttpCode, HttpException, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard }    from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { CookieOptions, Request, Response } from 'express';
-import { AuthService }                 from './auth.service.js';
+import { AuthService }              from './auth.service.js';
 import { AuthGuard, type AuthRequest } from './auth.guard.js';
-import { OriginGuard }                 from './origin.guard.js';
-import { LoginDto, SignupDto }         from './auth.dto.js';
-import { refreshLifetime }             from './session.service.js';
+import { OriginGuard }              from './origin.guard.js';
+import { LoginDto }                 from './auth.dto.js';
+import { refreshLifetime }          from './session.service.js';
 
 const cookieOptions = (): CookieOptions => ({
   httpOnly: true,
@@ -18,12 +18,6 @@ const cookieOptions = (): CookieOptions => ({
 @UseGuards(OriginGuard, ThrottlerGuard)
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
-
-  @Post('signup')
-  @HttpCode(201)
-  @Header('Cache-Control', 'no-store')
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
-  signup(@Body() body: SignupDto) { return this.auth.signup(body); }
 
   @Post('login')
   @HttpCode(200)

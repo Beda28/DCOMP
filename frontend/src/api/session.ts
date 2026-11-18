@@ -1,16 +1,17 @@
 import { useSyncExternalStore } from 'react';
 
-export type User = { id: number; username: string; role: 'ADMIN' | 'STAFF' };
+export type User = { id: number; organizationId: number; username: string; role: 'ADMIN' | 'STAFF' };
 
 let token: string | null = null;
-let revision = 0;
-let state = { user: null as User | null, ready: false };
-const listeners = new Set<() => void>();
+let revision             = 0;
+let state                = { user: null as User | null, ready: false };
+const listeners          = new Set<() => void>();
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 };
+
 const snapshot = () => state;
 
 export const useSession  = () => useSyncExternalStore(subscribe, snapshot);
@@ -34,6 +35,8 @@ export const lockSession = <T,>(action: () => Promise<T>): Promise<T> => (
 );
 
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('dcomp-auth');
+
+export const notifyLogin = (): void => { channel?.postMessage('login'); };
 
 export const clearSession = (broadcast = true): void => {
   token = null;

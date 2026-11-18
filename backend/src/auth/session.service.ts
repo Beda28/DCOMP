@@ -1,10 +1,11 @@
-import { Injectable }                   from '@nestjs/common';
+import { Injectable }         from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DataSource, IsNull, MoreThan } from 'typeorm';
-import type { EntityManager }           from 'typeorm';
-import { AuthSession }                  from './auth-session.entity.js';
-import { User }                         from './user.entity.js';
-import { apiError }                     from '../common/api-error.js';
+import type { EntityManager } from 'typeorm';
+import { AuthSession }        from './auth-session.entity.js';
+import { User }               from './user.entity.js';
+import { apiError }           from '../common/api-error.js';
+import { Organization }       from '../organizations/organization.entity.js';
 
 export const refreshLifetime = 7 * 24 * 60 * 60;
 
@@ -24,10 +25,16 @@ export class SessionService {
     return { token, familyId };
   }
 
-  async create(userId: number) {
+  async create(userId: number, passwordHash: string) {
     return this.database.transaction(async db => {
-      const user = await db.findOne(User, { where: { id: userId }, lock: { mode: 'pessimistic_write' } });
-      if (!user || user.status !== 'ACTIVE') throw apiError(423, 'ACCOUNT_DISABLED', '비활성화된 계정입니다.');
+      const user = await db.findOne(User, {
+        where: { id: userId }, lock: { mode: 'pessimistic_write' },
+        select: { id: true, organizationId: true, username: true, role: true, status: true, passwordHash: true },
+      });
+      const organization = user ? await db.findOneBy(Organization, { id: user.organizationId, status: 'ACTIVE' }) : null;
+      if (!user || user.status !== 'ACTIVE' || user.passwordHash !== passwordHash || !organization) {
+        throw apiError(401, 'INVALID_CREDENTIALS', '회사 코드, 아이디 또는 비밀번호를 확인해주세요.');
+      }
       return { ...await this.issue(db, user.id, randomUUID()), user };
     });
   }
@@ -41,9 +48,10 @@ export class SessionService {
       if (!known) return { error: 'REFRESH_EXPIRED' } as const;
 
       // 사용자 행을 먼저 잠가 같은 세션의 갱신과 폐기를 순서대로 처리한다.
-      const user = await db.findOne(User, { where: { id: known.userId }, lock: { mode: 'pessimistic_write' } });
-      const row  = await db.findOneOrFail(AuthSession, { where: { id: known.id }, lock: { mode: 'pessimistic_write' } });
-      if (row.revokedAt || !user || user.status !== 'ACTIVE') {
+      const user         = await db.findOne(User, { where: { id: known.userId }, lock: { mode: 'pessimistic_write' } });
+      const row          = await db.findOneOrFail(AuthSession, { where: { id: known.id }, lock: { mode: 'pessimistic_write' } });
+      const organization = user ? await db.findOneBy(Organization, { id: user.organizationId, status: 'ACTIVE' }) : null;
+      if (row.revokedAt || !user || user.status !== 'ACTIVE' || !organization) {
         await db.update(AuthSession, { familyId: row.familyId, revokedAt: IsNull() }, { revokedAt: new Date() });
         return { error: 'SESSION_REVOKED' } as const;
       }

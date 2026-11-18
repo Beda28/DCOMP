@@ -22,8 +22,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
       - uploads:/app/uploads
     networks:

@@ -1,9 +1,9 @@
-import { items }                       from '../api/catalog';
-import { useSession }                  from '../api/session';
-import Catalog                         from '../components/catalog';
+import { items }              from '../api/catalog';
+import { useSession }         from '../api/session';
+import Catalog                from '../components/catalog';
 import FormattedInput, { formatValue } from '../components/formatted-input';
-import { Help, SectionTitle }          from '../components/catalog.styles';
-import { Field, Input }                from '../components/ui';
+import { Help, SectionTitle } from '../components/catalog.styles';
+import { Field, Input }       from '../components/ui';
 
 const Items = () => {
   const { user } = useSession();

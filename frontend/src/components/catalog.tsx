@@ -6,35 +6,52 @@ import { authMessage } from '../api/auth';
 import { Button, Card, Field, Input, Title } from './ui';
 
 type Record = { id: number; name: string; status: Status };
+
 type Props<T, Input> = {
-  title: string; path: string; api: CatalogApi<T, Input>; canEdit: boolean; canDeactivate: boolean;
-  roleFilter?: boolean; summary: (record: T) => ReactNode;
-  fields: (record?: T) => ReactNode; values: (form: FormData) => Input;
+  title: string;
+  path:  string;
+  api:   CatalogApi<T, Input>;
+
+  canEdit:       boolean;
+  canDeactivate: boolean;
+  roleFilter?:   boolean;
+
+  summary: (record: T) => ReactNode;
+  fields:  (record?: T) => ReactNode;
+  values:  (form: FormData) => Input;
 };
 
 const Catalog = <T extends Record, Input>({ title, path, api, canEdit, canDeactivate, roleFilter, summary, fields, values }: Props<T, Input>) => {
-  const { id }                 = useParams();
-  const [params, setParams]     = useSearchParams();
-  const location               = useLocation();
-  const navigate               = useNavigate();
+  const { id }              = useParams();
+  const [params, setParams] = useSearchParams();
+  const location            = useLocation();
+  const navigate            = useNavigate();
+
   const [result, setResult]     = useState<ListResult<T> | null>(null);
   const [selected, setSelected] = useState<T | null>(null);
   const [loading, setLoading]   = useState(true);
   const [pending, setPending]   = useState(false);
   const [error, setError]       = useState('');
-  const creating               = id === 'new';
-  const listUrl                = `${path}${location.search}`;
-  const notice                 = typeof location.state?.notice === 'string' ? location.state.notice : '';
+
+  const creating = id === 'new';
+  const listUrl  = `${path}${location.search}`;
+  const notice   = typeof location.state?.notice === 'string' ? location.state.notice : '';
   const query = useMemo<Query>(() => ({
-    q: params.get('q') ?? '', status: (params.get('status') ?? 'ACTIVE') as Query['status'],
-    role: (params.get('role') ?? '') as Query['role'], page: Number(params.get('page') ?? 1),
+    q:      params.get('q') ?? '',
+    status: (params.get('status') ?? 'ACTIVE') as Query['status'],
+    role:   (params.get('role') ?? '') as Query['role'],
+    page:   Number(params.get('page') ?? 1),
   }), [params]);
 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
     setSelected(null);
-    if (creating) { setLoading(false); return () => controller.abort(); }
+    if (creating) {
+      setLoading(false);
+      return () => controller.abort();
+    }
+
     setLoading(true);
     const request = id
       ? api.get(Number(id), controller.signal).then(data => { if (!controller.signal.aborted) setSelected(data); })
@@ -42,16 +59,23 @@ const Catalog = <T extends Record, Input>({ title, path, api, canEdit, canDeacti
     request.catch(error => {
       if (!controller.signal.aborted) { setResult(null); setError(authMessage(error)); }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+
     return () => controller.abort();
   }, [api, id, creating, query]);
 
   const save = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (!canEdit || (!creating && !selected)) return;
+
     const form = new FormData(event.currentTarget);
-    if (roleFilter && !form.getAll('roles').length) { setError('고객사 또는 공급사를 선택해주세요.'); return; }
+    if (roleFilter && !form.getAll('roles').length) {
+      setError('고객사 또는 공급사를 선택해주세요.');
+      return;
+    }
+
     setPending(true);
     setError('');
+
     try {
       await api.save(creating ? undefined : selected!.id, values(form));
       navigate(listUrl, { replace: true, state: { notice: '저장했습니다.' } });
@@ -62,8 +86,10 @@ const Catalog = <T extends Record, Input>({ title, path, api, canEdit, canDeacti
 
   const deactivate = async (): Promise<void> => {
     if (!selected || !window.confirm(`${selected.name}을(를) 비활성화할까요?`)) return;
+
     setPending(true);
     setError('');
+
     try {
       await api.deactivate(selected.id);
       const next = new URLSearchParams(params);

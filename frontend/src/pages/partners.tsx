@@ -1,9 +1,9 @@
-import { partners, type PartnerRole }       from '../api/catalog';
-import { useSession }                       from '../api/session';
+import { partners, type PartnerRole } from '../api/catalog';
+import { useSession }   from '../api/session';
 import { Choices, Help, Row, SectionTitle } from '../components/catalog.styles';
-import Catalog                              from '../components/catalog';
-import FormattedInput, { formatValue }      from '../components/formatted-input';
-import { Field, Input }                     from '../components/ui';
+import Catalog          from '../components/catalog';
+import FormattedInput, { formatValue } from '../components/formatted-input';
+import { Field, Input } from '../components/ui';
 
 const Partners = () => {
   const { user } = useSession();

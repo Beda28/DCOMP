@@ -27,6 +27,7 @@ export const refreshAccessToken = (): Promise<void> => {
 };
 
 client.interceptors.request.use(config => {
+  (config as typeof config & { sessionRevision: number }).sessionRevision = getRevision();
   const accessToken = getToken();
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   else config.headers.delete('Authorization');
@@ -36,14 +37,17 @@ client.interceptors.request.use(config => {
 client.interceptors.response.use(response => response, async (error: unknown) => {
   if (!axios.isAxiosError(error) || !error.config || error.response?.status !== 401) throw error;
 
-  const config = error.config as typeof error.config & { retried?: boolean };
-  if (['/auth/login', '/auth/signup', '/auth/refresh', '/auth/logout'].includes(config.url ?? '')) throw error;
+  const config = error.config as typeof error.config & { retried?: boolean; sessionRevision?: number };
+  if (['/auth/login', '/organizations/register', '/auth/refresh', '/auth/logout'].includes(config.url ?? '')) throw error;
+  if (config.sessionRevision !== getRevision()) throw error;
   if (config.retried) {
     clearSession();
     throw error;
   }
+
   config.retried = true;
   await refreshAccessToken();
+  if (config.sessionRevision !== getRevision()) throw error;
   return client(config);
 });
 

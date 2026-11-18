@@ -1,12 +1,27 @@
+CREATE TABLE organizations (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  code CHAR(6) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  status ENUM('ACTIVE','DISABLED') NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_organizations_code (code),
+  CONSTRAINT ck_organizations_code CHECK (code REGEXP '^[0-9]{6}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE users (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   username VARCHAR(32) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('ADMIN','STAFF') NOT NULL DEFAULT 'STAFF',
   status ENUM('ACTIVE','DISABLED') NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_users_username (username)
+  UNIQUE KEY uq_users_organization_id (organization_id, id),
+  UNIQUE KEY uq_users_username (organization_id, username),
+  CONSTRAINT fk_users_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE auth_sessions (
@@ -26,6 +41,7 @@ CREATE TABLE auth_sessions (
 
 CREATE TABLE partners (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   name VARCHAR(160) NOT NULL,
   is_customer TINYINT(1) NOT NULL DEFAULT 0,
   is_supplier TINYINT(1) NOT NULL DEFAULT 0,
@@ -35,16 +51,20 @@ CREATE TABLE partners (
   status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_partners_biz_number (biz_number),
-  KEY ix_partners_status_name (status, name),
+  UNIQUE KEY uq_partners_organization_id (organization_id, id),
+  UNIQUE KEY uq_partners_biz_number (organization_id, biz_number),
+  KEY ix_partners_status_name (organization_id, status, name),
   CONSTRAINT ck_partners_role CHECK (is_customer = 1 OR is_supplier = 1),
   CONSTRAINT ck_partners_flags CHECK (
     is_customer IN (0,1) AND is_supplier IN (0,1)
-  )
+  ),
+  CONSTRAINT fk_partners_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE items (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   sku VARCHAR(64) NOT NULL,
   name VARCHAR(160) NOT NULL,
   unit VARCHAR(20) NOT NULL DEFAULT 'EA',
@@ -53,16 +73,20 @@ CREATE TABLE items (
   status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_items_sku (sku),
-  KEY ix_items_status_name (status, name),
+  UNIQUE KEY uq_items_organization_id (organization_id, id),
+  UNIQUE KEY uq_items_sku (organization_id, sku),
+  KEY ix_items_status_name (organization_id, status, name),
   CONSTRAINT ck_items_prices CHECK (
     (purchase_price IS NULL OR purchase_price >= 0)
     AND (sale_price IS NULL OR sale_price >= 0)
-  )
+  ),
+  CONSTRAINT fk_items_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE transactions (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   number VARCHAR(48) NOT NULL,
   partner_id INT UNSIGNED NOT NULL,
   created_by INT UNSIGNED NOT NULL,
@@ -76,18 +100,22 @@ CREATE TABLE transactions (
   canceled_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_transactions_number (number),
-  KEY ix_transactions_partner_date (partner_id, occurred_at),
-  KEY ix_transactions_type_status_date (type, status, occurred_at),
-  CONSTRAINT fk_transactions_partner FOREIGN KEY (partner_id)
-    REFERENCES partners(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_transactions_user FOREIGN KEY (created_by)
-    REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT ck_transactions_total CHECK (total_amount >= 0)
+  UNIQUE KEY uq_transactions_organization_id (organization_id, id),
+  UNIQUE KEY uq_transactions_number (organization_id, number),
+  KEY ix_transactions_partner_date (organization_id, partner_id, occurred_at),
+  KEY ix_transactions_type_status_date (organization_id, type, status, occurred_at),
+  CONSTRAINT fk_transactions_partner FOREIGN KEY (organization_id, partner_id)
+    REFERENCES partners(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_transactions_user FOREIGN KEY (organization_id, created_by)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT ck_transactions_total CHECK (total_amount >= 0),
+  CONSTRAINT fk_transactions_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE transaction_lines (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   transaction_id INT UNSIGNED NOT NULL,
   item_id INT UNSIGNED NOT NULL,
   position SMALLINT UNSIGNED NOT NULL,
@@ -98,18 +126,21 @@ CREATE TABLE transaction_lines (
   item_name_snapshot VARCHAR(160) NOT NULL,
   UNIQUE KEY uq_transaction_lines_position (transaction_id, position),
   UNIQUE KEY uq_transaction_lines_item (transaction_id, item_id),
-  KEY ix_transaction_lines_item (item_id),
-  CONSTRAINT fk_transaction_lines_transaction FOREIGN KEY (transaction_id)
-    REFERENCES transactions(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_transaction_lines_item FOREIGN KEY (item_id)
-    REFERENCES items(id) ON DELETE RESTRICT,
+  KEY ix_transaction_lines_item (organization_id, item_id),
+  CONSTRAINT fk_transaction_lines_transaction FOREIGN KEY (organization_id, transaction_id)
+    REFERENCES transactions(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_transaction_lines_item FOREIGN KEY (organization_id, item_id)
+    REFERENCES items(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT ck_transaction_lines_values CHECK (
     quantity > 0 AND unit_price >= 0 AND line_amount >= 0
-  )
+  ),
+  CONSTRAINT fk_transaction_lines_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE documents (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   partner_id INT UNSIGNED NULL,
   transaction_id INT UNSIGNED NULL,
   uploaded_by INT UNSIGNED NOT NULL,
@@ -132,23 +163,26 @@ CREATE TABLE documents (
   processed_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_documents_organization_id (organization_id, id),
   UNIQUE KEY uq_documents_storage_key (storage_key),
   UNIQUE KEY uq_documents_upload_key (uploaded_by, upload_key),
-  KEY ix_documents_partner_status_date (partner_id, status, created_at),
-  KEY ix_documents_kind_status_date (kind, status, created_at),
-  KEY ix_documents_transaction (transaction_id),
-  KEY ix_documents_sha256 (sha256),
-  CONSTRAINT fk_documents_partner FOREIGN KEY (partner_id)
-    REFERENCES partners(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_documents_transaction FOREIGN KEY (transaction_id)
-    REFERENCES transactions(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by)
-    REFERENCES users(id) ON DELETE RESTRICT,
+  KEY ix_documents_partner_status_date (organization_id, partner_id, status, created_at),
+  KEY ix_documents_kind_status_date (organization_id, kind, status, created_at),
+  KEY ix_documents_transaction (organization_id, transaction_id),
+  KEY ix_documents_sha256 (organization_id, sha256),
+  CONSTRAINT fk_documents_partner FOREIGN KEY (organization_id, partner_id)
+    REFERENCES partners(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_documents_transaction FOREIGN KEY (organization_id, transaction_id)
+    REFERENCES transactions(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_documents_uploader FOREIGN KEY (organization_id, uploaded_by)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT ck_documents_size CHECK (size_bytes > 0),
   CONSTRAINT ck_documents_upload_key_hash CHECK (
     (upload_key IS NULL AND upload_request_hash IS NULL)
     OR (upload_key IS NOT NULL AND upload_request_hash IS NOT NULL)
-  )
+  ),
+  CONSTRAINT fk_documents_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE document_jobs (
@@ -175,6 +209,7 @@ CREATE TABLE document_jobs (
 
 CREATE TABLE document_edits (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
   document_id INT UNSIGNED NOT NULL,
   editor_id INT UNSIGNED NOT NULL,
   revision INT UNSIGNED NOT NULL,
@@ -184,10 +219,12 @@ CREATE TABLE document_edits (
   after_text LONGTEXT NULL,
   edited_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_document_edits_revision (document_id, revision),
-  KEY ix_document_edits_editor (editor_id),
-  CONSTRAINT fk_document_edits_document FOREIGN KEY (document_id)
-    REFERENCES documents(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_document_edits_editor FOREIGN KEY (editor_id)
-    REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT ck_document_edits_revision CHECK (revision > 0)
+  KEY ix_document_edits_editor (organization_id, editor_id),
+  CONSTRAINT fk_document_edits_document FOREIGN KEY (organization_id, document_id)
+    REFERENCES documents(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_document_edits_editor FOREIGN KEY (organization_id, editor_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT ck_document_edits_revision CHECK (revision > 0),
+  CONSTRAINT fk_document_edits_organization FOREIGN KEY (organization_id)
+    REFERENCES organizations(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

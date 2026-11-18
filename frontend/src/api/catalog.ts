@@ -18,15 +18,18 @@ const catalogApi = <T, Input>(path: string) => ({
     const params = { ...query, status: query.status || undefined, role: query.role || undefined, limit: 20 };
     return (await client.get<ListResult<T>>(path, { params, signal })).data;
   },
+
   async get(id: number, signal?: AbortSignal): Promise<T> {
     return (await client.get<{ data: T }>(`${path}/${id}`, { signal })).data.data;
   },
+
   async save(id: number | undefined, input: Input): Promise<T> {
     const response = id === undefined
       ? await client.post<{ data: T }>(path, input)
       : await client.patch<{ data: T }>(`${path}/${id}`, input);
     return response.data.data;
   },
+
   async deactivate(id: number): Promise<void> {
     await client.delete(`${path}/${id}`);
   },

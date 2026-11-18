@@ -1,20 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { readFileSync }  from 'node:fs';
-import { execFileSync }  from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-
-const root = fileURLToPath(new URL('../../', import.meta.url));
-const env  = Object.fromEntries(readFileSync(new URL('../../.env', import.meta.url), 'utf8').split(/\r?\n/)
-  .filter(line => line.includes('=') && !line.startsWith('#'))
-  .map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
-
-const signIn = async (page: Page, username: string, password: string): Promise<void> => {
-  await page.goto('/login');
-  await page.getByLabel('아이디', { exact: true }).fill(username);
-  await page.getByLabel('비밀번호', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '로그인', exact: true }).click();
-  await expect(page).toHaveURL('/');
-};
+import { baseURL, createCompany, headers, removeCompany, signIn } from './helpers';
 
 test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고침·오류 복구', async ({ page, browser }, info) => {
   test.setTimeout(120000);
@@ -47,12 +32,13 @@ test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고
     await expect(current.getByText('목록 불러오는 중...')).toHaveCount(0);
   };
 
+  const company = await createCompany(page.request);
   try {
     await page.goto('/partners');
     await expect(page).toHaveURL('/login');
     await page.goto('/items');
     await expect(page).toHaveURL('/login');
-    await signIn(page, env.ADMIN_USERNAME, env.ADMIN_PASSWORD);
+    const adminToken = await signIn(page, company.code);
     await page.getByRole('navigation', { name: '메인 메뉴' }).getByRole('link', { name: '거래처', exact: true }).click();
     await expect(page.getByRole('heading', { name: '거래처', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '거래처 등록', exact: true }).click();
@@ -134,13 +120,11 @@ test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고
     await expect(page.getByLabel('품목명', { exact: true })).toHaveValue('중복 테스트');
     await page.getByRole('button', { name: '취소', exact: true }).click();
 
-    const signup = await staffContext.request.post('http://localhost/api/v1/auth/signup', {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }, data: { username, password },
+    const created = await page.request.post(`${baseURL}/api/v1/users`, {
+      headers: { ...headers, Authorization: `Bearer ${adminToken}` }, data: { username, password },
     });
-    expect(signup.status()).toBe(201);
-    const staffLogin = staffPage.waitForResponse(reply => reply.url().endsWith('/auth/login') && reply.status() === 200);
-    await signIn(staffPage, username, password);
-    const staffToken = (await (await staffLogin).json()).data.accessToken;
+    expect(created.status()).toBe(201);
+    const staffToken = await signIn(staffPage, company.code, username, password);
     await staffPage.getByRole('navigation', { name: '메인 메뉴' }).getByRole('link', { name: '거래처', exact: true }).click();
     await search(staffPage, prefix);
     await staffPage.getByRole('link', { name: `${prefix}_거래처`, exact: true }).click();
@@ -154,7 +138,7 @@ test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고
     await staffPage.getByRole('link', { name: `${prefix}_품목`, exact: true }).click();
     await expect(staffPage.getByLabel('SKU', { exact: true })).toBeDisabled();
     await expect(staffPage.getByRole('button', { name: '저장', exact: true })).toHaveCount(0);
-    const denied = await staffContext.request.patch(`http://localhost/api/v1/items/${itemIds[0]}`, {
+    const denied = await staffContext.request.patch(`${baseURL}/api/v1/items/${itemIds[0]}`, {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Authorization: `Bearer ${staffToken}` }, data: { name: '권한 우회' },
     });
     expect(denied.status()).toBe(403);
@@ -198,24 +182,6 @@ test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고
   }
   finally {
     await staffContext.close();
-    execFileSync('docker', ['compose', 'exec', '-T', 'backend', 'node', '--input-type=module'], {
-      cwd: root,
-      input: `
-        import { DataSource } from 'typeorm';
-        import { databaseOptions } from './dist/database/database.config.js';
-        const db = await new DataSource(databaseOptions).initialize();
-        try {
-          for (const id of ${JSON.stringify(partnerIds)}) await db.query('DELETE FROM partners WHERE id = ?', [id]);
-          for (const id of ${JSON.stringify(itemIds)}) await db.query('DELETE FROM items WHERE id = ?', [id]);
-          const [user] = await db.query('SELECT id FROM users WHERE username = ? AND role = ?', [${JSON.stringify(username)}, 'STAFF']);
-          if (user) {
-            await db.query('DELETE FROM auth_sessions WHERE user_id = ?', [user.id]);
-            await db.query('DELETE FROM users WHERE id = ?', [user.id]);
-          }
-        }
-        finally { await db.destroy(); }
-      `,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    removeCompany(company.id);
   }
 });

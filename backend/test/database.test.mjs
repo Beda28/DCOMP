@@ -6,7 +6,7 @@ import { databaseOptions } from '../dist/database/database.config.js';
 if (process.env.DB_NAME !== 'dcomp_test') throw new Error('전용 dcomp_test DB에서만 실행할 수 있습니다.');
 
 const tables = [
-  'users', 'auth_sessions', 'partners', 'items', 'transactions',
+  'organizations', 'users', 'auth_sessions', 'partners', 'items', 'transactions',
   'transaction_lines', 'documents', 'document_jobs', 'document_edits',
 ];
 
@@ -21,7 +21,7 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
   );
 
   try {
-    await context.test('초기 SQL로 생성된 9개 테이블과 UTC 설정', async () => {
+    await context.test('초기 SQL로 생성된 10개 테이블과 UTC 설정', async () => {
       const rows = await database.query(`
         SELECT TABLE_NAME AS name, TABLE_COLLATION AS collation, ENGINE AS engine
         FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()
@@ -35,18 +35,20 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
 
     await db.startTransaction();
 
-    const user = await insert('INSERT INTO users (username, password_hash) VALUES (?, ?)', ['admin', 'test-hash']);
-    const otherUser = await insert('INSERT INTO users (username, password_hash) VALUES (?, ?)', ['staff', 'test-hash']);
-    const partner = await insert('INSERT INTO partners (name, is_supplier, biz_number) VALUES (?, 1, ?)', ['거래처', '123-45-67890']);
-    const item = await insert('INSERT INTO items (sku, name, sale_price) VALUES (?, ?, ?)', ['ITEM-001', '원래 품목명', '0.04']);
-    const otherItem = await insert('INSERT INTO items (sku, name) VALUES (?, ?)', ['ITEM-002', '다른 품목']);
+    const organizationId = await insert("INSERT INTO organizations (name, code) VALUES ('Schema test', '000125')");
+    const otherOrganizationId = await insert("INSERT INTO organizations (name, code) VALUES ('Other company', '000126')");
+    const user = await insert(`INSERT INTO users (organization_id, username, password_hash) VALUES (${organizationId}, ?, ?)`, ['admin', 'test-hash']);
+    const otherUser = await insert(`INSERT INTO users (organization_id, username, password_hash) VALUES (${organizationId}, ?, ?)`, ['staff', 'test-hash']);
+    const partner = await insert(`INSERT INTO partners (organization_id, name, is_supplier, biz_number) VALUES (${organizationId}, ?, 1, ?)`, ['거래처', '123-45-67890']);
+    const item = await insert(`INSERT INTO items (organization_id, sku, name, sale_price) VALUES (${organizationId}, ?, ?, ?)`, ['ITEM-001', '원래 품목명', '0.04']);
+    const otherItem = await insert(`INSERT INTO items (organization_id, sku, name) VALUES (${organizationId}, ?, ?)`, ['ITEM-002', '다른 품목']);
     const transaction = await insert(`
-      INSERT INTO transactions (number, partner_id, created_by, type, occurred_at)
-      VALUES ('TRX-TEST-001', ?, ?, 'PURCHASE', '2026-11-18')
+      INSERT INTO transactions (organization_id, number, partner_id, created_by, type, occurred_at)
+      VALUES (${organizationId}, 'TRX-TEST-001', ?, ?, 'PURCHASE', '2026-11-18')
     `, [partner, user]);
 
     await context.test('계정 아이디·Refresh 해시 중복 차단, 세션 계열 내 토큰 회전 허용', async () => {
-      await rejects('INSERT INTO users (username, password_hash) VALUES (?, ?)', ['ADMIN', 'hash'], 'ER_DUP_ENTRY');
+      await rejects(`INSERT INTO users (organization_id, username, password_hash) VALUES (${organizationId}, ?, ?)`, ['ADMIN', 'hash'], 'ER_DUP_ENTRY');
 
       const sql = 'INSERT INTO auth_sessions (user_id, family_id, refresh_token_hash, expires_at) VALUES (?, ?, ?, ?)';
       const family = '00000000-0000-4000-8000-000000000001';
@@ -60,14 +62,14 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
     });
 
     await context.test('거래처 역할 필수·불리언 범위·사업자번호 중복 검증', async () => {
-      await rejects('INSERT INTO partners (name) VALUES (?)', ['역할 없음'], 'ER_CHECK_CONSTRAINT_VIOLATED');
-      await rejects('INSERT INTO partners (name, is_customer, is_supplier) VALUES (?, 2, 1)', ['잘못된 역할'], 'ER_CHECK_CONSTRAINT_VIOLATED');
-      await rejects('INSERT INTO partners (name, is_customer, biz_number) VALUES (?, 1, ?)', ['중복 거래처', '123-45-67890'], 'ER_DUP_ENTRY');
-      await db.query("INSERT INTO partners (name, is_customer, is_supplier) VALUES ('고객사', 1, 0), ('겸업 업체', 1, 1)");
+      await rejects(`INSERT INTO partners (organization_id, name) VALUES (${organizationId}, ?)`, ['역할 없음'], 'ER_CHECK_CONSTRAINT_VIOLATED');
+      await rejects(`INSERT INTO partners (organization_id, name, is_customer, is_supplier) VALUES (${organizationId}, ?, 2, 1)`, ['잘못된 역할'], 'ER_CHECK_CONSTRAINT_VIOLATED');
+      await rejects(`INSERT INTO partners (organization_id, name, is_customer, biz_number) VALUES (${organizationId}, ?, 1, ?)`, ['중복 거래처', '123-45-67890'], 'ER_DUP_ENTRY');
+      await db.query(`INSERT INTO partners (organization_id, name, is_customer, is_supplier) VALUES (${organizationId}, '고객사', 1, 0), (${organizationId}, '겸업 업체', 1, 1)`);
     });
 
     await context.test('품목 SKU 중복과 음수 가격 차단, 기본가 미지정 허용', async () => {
-      await rejects('INSERT INTO items (sku, name) VALUES (?, ?)', ['ITEM-001', '중복'], 'ER_DUP_ENTRY');
+      await rejects(`INSERT INTO items (organization_id, sku, name) VALUES (${organizationId}, ?, ?)`, ['ITEM-001', '중복'], 'ER_DUP_ENTRY');
       await rejects('UPDATE items SET purchase_price = -1 WHERE id = ?', [item], 'ER_CHECK_CONSTRAINT_VIOLATED');
       await rejects('UPDATE items SET sale_price = -1 WHERE id = ?', [item], 'ER_CHECK_CONSTRAINT_VIOLATED');
 
@@ -77,8 +79,8 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
 
     const lineSql = `
       INSERT INTO transaction_lines
-        (transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (organization_id, transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot)
+      VALUES (${organizationId}, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const line = [transaction, item, 1, '0.125', '0.04', '0.01', 'ITEM-001', '원래 품목명'];
     await db.query(lineSql, line);
@@ -110,8 +112,8 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
 
     const documentSql = `
       INSERT INTO documents
-        (uploaded_by, kind, original_filename, content_type, size_bytes, storage_key, sha256, upload_key, upload_request_hash)
-      VALUES (?, 'RECEIPT', 'receipt.png', 'image/png', 100, ?, ?, ?, ?)
+        (organization_id, uploaded_by, kind, original_filename, content_type, size_bytes, storage_key, sha256, upload_key, upload_request_hash)
+      VALUES (${organizationId}, ?, 'RECEIPT', 'receipt.png', 'image/png', 100, ?, ?, ?, ?)
     `;
     const hash = 'd'.repeat(64);
     const document = await insert(documentSql, [user, 'original.png', hash, null, null]);
@@ -144,7 +146,7 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
     });
 
     await context.test('보정 이력의 문서별 revision 고유성·JSON·외래키 검증', async () => {
-      const sql = 'INSERT INTO document_edits (document_id, editor_id, revision, before_json, after_json) VALUES (?, ?, ?, ?, ?)';
+      const sql = `INSERT INTO document_edits (organization_id, document_id, editor_id, revision, before_json, after_json) VALUES (${organizationId}, ?, ?, ?, ?, ?)`;
       const before = JSON.stringify({ issuer: '원래 발급자' });
       const after = JSON.stringify({ issuer: '수정 발급자' });
       await db.query(sql, [document, user, 1, before, after]);
@@ -154,10 +156,30 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
       await rejects('DELETE FROM documents WHERE id = ?', [document], 'ER_ROW_IS_REFERENCED_2');
     });
 
+    await context.test('회사별 식별값 고유성과 복합 외래키', async () => {
+      const foreignUser = await insert("INSERT INTO users (organization_id, username, password_hash) VALUES (?, 'admin', 'hash')", [otherOrganizationId]);
+      const foreignPartner = await insert("INSERT INTO partners (organization_id, name, is_customer, biz_number) VALUES (?, 'Other', 1, '123-45-67890')", [otherOrganizationId]);
+      const foreignItem = await insert("INSERT INTO items (organization_id, sku, name) VALUES (?, 'ITEM-001', 'Other')", [otherOrganizationId]);
+      for (const [sql, id] of [
+        ['UPDATE transactions SET partner_id = ? WHERE id = ?', foreignPartner],
+        ['UPDATE transactions SET created_by = ? WHERE id = ?', foreignUser],
+      ]) await rejects(sql, [id, transaction], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE transaction_lines SET item_id = ? WHERE transaction_id = ?', [foreignItem, transaction], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE transaction_lines SET organization_id = ? WHERE transaction_id = ?', [otherOrganizationId, transaction], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE documents SET uploaded_by = ? WHERE id = ?', [foreignUser, document], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE documents SET partner_id = ? WHERE id = ?', [foreignPartner, document], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE documents SET organization_id = ? WHERE id = ?', [otherOrganizationId, document], 'ER_ROW_IS_REFERENCED_2');
+      await rejects('UPDATE document_edits SET editor_id = ? WHERE document_id = ?', [foreignUser, document], 'ER_NO_REFERENCED_ROW_2');
+      await rejects('UPDATE document_edits SET organization_id = ? WHERE document_id = ?', [otherOrganizationId, document], 'ER_NO_REFERENCED_ROW_2');
+      await rejects("INSERT INTO organizations (name, code) VALUES ('Invalid', 'abc123')", [], 'ER_CHECK_CONSTRAINT_VIOLATED');
+      await rejects("INSERT INTO organizations (name, code) VALUES ('Duplicate', '000125')", [], 'ER_DUP_ENTRY');
+    });
+
     await db.rollbackTransaction();
 
     await context.test('DB 재연결 시 기존 데이터 보존', async () => {
-      await database.query("INSERT INTO users (username, password_hash) VALUES ('persist', 'test-hash')");
+      const organizationId = (await database.query("INSERT INTO organizations (name, code) VALUES ('Persistence', '000125')")).insertId;
+      await database.query(`INSERT INTO users (organization_id, username, password_hash) VALUES (${organizationId}, 'persist', 'test-hash')`);
       const reopened = await new DataSource(databaseOptions).initialize();
 
       try {
@@ -167,6 +189,7 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
       finally {
         await reopened.destroy();
         await database.query("DELETE FROM users WHERE username = 'persist'");
+        await database.query('DELETE FROM organizations WHERE id = ?', [organizationId]);
       }
     });
   }

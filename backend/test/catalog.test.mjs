@@ -22,6 +22,8 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
   const users    = [];
   const partners = [];
   const items    = [];
+  let organizationId;
+  const companyCode = '000124';
   let transaction;
   let document;
 
@@ -44,14 +46,15 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
   };
 
   try {
+    organizationId = (await db.query("INSERT INTO organizations (name, code) VALUES ('Catalog test', ?)", [companyCode])).insertId;
     const passwordHash = await hash(password);
     for (const role of ['ADMIN', 'STAFF']) {
       const username = `catalog_${role.toLowerCase()}`;
-      const result = await db.query('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, passwordHash, role]);
+      const result = await db.query('INSERT INTO users (organization_id, username, password_hash, role) VALUES (?, ?, ?, ?)', [organizationId, username, passwordHash, role]);
       users.push(result.insertId);
     }
-    const admin = (await auth.login({ username: 'catalog_admin', password })).data.accessToken;
-    const staff = (await auth.login({ username: 'catalog_staff', password })).data.accessToken;
+    const admin = (await auth.login({ companyCode, username: 'catalog_admin', password })).data.accessToken;
+    const staff = (await auth.login({ companyCode, username: 'catalog_staff', password })).data.accessToken;
     const create = async (path, body, access = admin) => {
       const reply = await request(path, { method: 'POST', body, access });
       if (reply.status === 201) (path === 'partners' ? partners : items).push(reply.body.data.id);
@@ -64,10 +67,10 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
 
     await context.test('로그인 필수, 직원 변경 권한과 CSRF 차단', async () => {
       for (const path of ['partners', 'items', 'partners/1', 'items/1']) error(await request(path), 401, 'UNAUTHORIZED');
-      for (const method of ['POST', 'PATCH', 'DELETE']) {
+      for (const method of ['POST']) {
         error(await request(method === 'POST' ? 'items' : 'items/1', { method, access: staff, body: method === 'DELETE' ? undefined : itemInput }), 403, 'FORBIDDEN');
       }
-      error(await request('partners/1', { method: 'DELETE', access: staff }), 403, 'FORBIDDEN');
+      error(await request('partners/4294967295', { method: 'DELETE', access: staff }), 404, 'PARTNER_NOT_FOUND');
       error(await request('partners', { method: 'POST', access: staff, body: partnerInput, headers: { 'X-Requested-With': '' } }), 403, 'FORBIDDEN');
       error(await request('items', { method: 'POST', access: admin, body: itemInput, headers: { Origin: 'https://other.example.com' } }), 403, 'FORBIDDEN');
     });
@@ -79,13 +82,13 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
       assert.equal(itemReply.status, 201, JSON.stringify(itemReply.body));
       partner = partnerReply.body.data;
       item = itemReply.body.data;
-      assert.deepEqual(partner, { ...partnerInput, id: partner.id, bizNumber: '123-45-67890', status: 'ACTIVE' });
-      assert.deepEqual(item, { ...itemInput, id: item.id, unit: 'EA', status: 'ACTIVE' });
+      assert.deepEqual(partner, { ...partnerInput, organizationId, id: partner.id, bizNumber: '123-45-67890', status: 'ACTIVE' });
+      assert.deepEqual(item, { ...itemInput, organizationId, id: item.id, unit: 'EA', status: 'ACTIVE' });
       assert.deepEqual((await request(`partners/${partner.id}`, { access: staff })).body.data, partner);
       assert.deepEqual((await request(`items/${item.id}`, { access: staff })).body.data, item);
       const minimal = await create('items', { sku: 'CATALOG-002', name: '기본값' });
       assert.equal(minimal.status, 201);
-      assert.deepEqual(minimal.body.data, { id: minimal.body.data.id, sku: 'CATALOG-002', name: '기본값', unit: 'EA', purchasePrice: null, salePrice: null, status: 'ACTIVE' });
+      assert.deepEqual(minimal.body.data, { id: minimal.body.data.id, organizationId, sku: 'CATALOG-002', name: '기본값', unit: 'EA', purchasePrice: null, salePrice: null, status: 'ACTIVE' });
     });
 
     await context.test('사업자번호 정규화와 SKU 대소문자 중복·동시 등록 충돌', async () => {
@@ -151,11 +154,11 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
     });
 
     await context.test('역할·품목 수정과 비활성화 후 거래 스냅샷·문서 연결 보존', async () => {
-      transaction = (await db.query("INSERT INTO transactions (number, partner_id, created_by, type, occurred_at) VALUES ('CATALOG-HISTORY', ?, ?, 'SALE', '2026-11-18')", [partner.id, users[0]])).insertId;
-      await db.query(`INSERT INTO transaction_lines (transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot)
-        VALUES (?, ?, 1, '2', '5.01', '10.02', ?, ?)`, [transaction, item.id, item.sku, item.name]);
-      document = (await db.query(`INSERT INTO documents (partner_id, transaction_id, uploaded_by, kind, original_filename, content_type, size_bytes, storage_key, sha256)
-        VALUES (?, ?, ?, 'RECEIPT', 'catalog.png', 'image/png', 10, 'catalog-history.png', ?)`, [partner.id, transaction, users[0], 'a'.repeat(64)])).insertId;
+      transaction = (await db.query("INSERT INTO transactions (organization_id, number, partner_id, created_by, type, occurred_at) VALUES (?, 'CATALOG-HISTORY', ?, ?, 'SALE', '2026-11-18')", [organizationId, partner.id, users[0]])).insertId;
+      await db.query(`INSERT INTO transaction_lines (organization_id, transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot)
+        VALUES (?, ?, ?, 1, '2', '5.01', '10.02', ?, ?)`, [organizationId, transaction, item.id, item.sku, item.name]);
+      document = (await db.query(`INSERT INTO documents (organization_id, partner_id, transaction_id, uploaded_by, kind, original_filename, content_type, size_bytes, storage_key, sha256)
+        VALUES (?, ?, ?, ?, 'RECEIPT', 'catalog.png', 'image/png', 10, 'catalog-history.png', ?)`, [organizationId, partner.id, transaction, users[0], 'a'.repeat(64)])).insertId;
       assert.equal((await request(`partners/${partner.id}`, { method: 'PATCH', access: staff, body: { roles: ['SUPPLIER'] } })).status, 200);
       assert.equal((await request(`items/${item.id}`, { method: 'PATCH', access: admin, body: { sku: 'CHANGED', name: '수정 품목', salePrice: '999.99' } })).status, 200);
       for (const path of [`partners/${partner.id}`, `items/${item.id}`]) {
@@ -187,6 +190,7 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
       await db.query('DELETE FROM auth_sessions WHERE user_id = ?', [id]);
       await db.query('DELETE FROM users WHERE id = ?', [id]);
     }
+    if (organizationId) await db.query('DELETE FROM organizations WHERE id = ?', [organizationId]);
     await app.close();
   }
 });

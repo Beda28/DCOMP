@@ -1,30 +1,28 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { CreatePartnerDto, PartnerQueryDto, UpdatePartnerDto } from './partner.dto.js';
-import { AuthGuard }         from '../auth/auth.guard.js';
-import { OriginGuard }       from '../auth/origin.guard.js';
-import { Roles, RolesGuard } from '../auth/roles.guard.js';
-import { RecordIdDto }       from '../common/catalog.dto.js';
-import { PartnersService }   from './partners.service.js';
+import { AuthGuard, type AuthRequest } from '../auth/auth.guard.js';
+import { OriginGuard }     from '../auth/origin.guard.js';
+import { RecordIdDto }     from '../common/catalog.dto.js';
+import { PartnersService } from './partners.service.js';
 
 @Controller('partners')
-@UseGuards(AuthGuard, OriginGuard, RolesGuard)
+@UseGuards(AuthGuard, OriginGuard)
 export class PartnersController {
   constructor(private readonly partners: PartnersService) {}
 
   @Get()
-  list(@Query() query: PartnerQueryDto) { return this.partners.list(query); }
+  list(@Req() request: AuthRequest, @Query() query: PartnerQueryDto) { return this.partners.list(request.user.organizationId, query); }
 
   @Post()
-  create(@Body() body: CreatePartnerDto) { return this.partners.create(body); }
+  create(@Req() request: AuthRequest, @Body() body: CreatePartnerDto) { return this.partners.create(request.user.organizationId, body); }
 
   @Get(':id')
-  get(@Param() { id }: RecordIdDto) { return this.partners.get(id); }
+  get(@Req() request: AuthRequest, @Param() { id }: RecordIdDto) { return this.partners.get(request.user.organizationId, id); }
 
   @Patch(':id')
-  update(@Param() { id }: RecordIdDto, @Body() body: UpdatePartnerDto) { return this.partners.update(id, body); }
+  update(@Req() request: AuthRequest, @Param() { id }: RecordIdDto, @Body() body: UpdatePartnerDto) { return this.partners.update(request.user, id, body); }
 
   @Delete(':id')
-  @Roles('ADMIN')
   @HttpCode(204)
-  deactivate(@Param() { id }: RecordIdDto) { return this.partners.deactivate(id); }
+  deactivate(@Req() request: AuthRequest, @Param() { id }: RecordIdDto) { return this.partners.deactivate(request.user, id); }
 }

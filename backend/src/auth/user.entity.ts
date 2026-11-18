@@ -5,6 +5,9 @@ export class User {
   @PrimaryGeneratedColumn({ unsigned: true })
   id!: number;
 
+  @Column({ name: 'organization_id', type: 'int', unsigned: true })
+  organizationId!: number;
+
   @Column({ length: 32 })
   username!: string;
 
@@ -18,4 +21,4 @@ export class User {
   status!: 'ACTIVE' | 'DISABLED';
 }
 
-export type Profile = Pick<User, 'id' | 'username' | 'role' | 'status'>;
+export type Profile = Pick<User, 'id' | 'organizationId' | 'username' | 'role' | 'status'>;
