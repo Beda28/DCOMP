@@ -1,7 +1,7 @@
 import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
-import type { Request }                                       from 'express';
-import { AuthService }                                        from './auth.service.js';
-import type { Profile }                                       from './user.entity.js';
+import type { Request } from 'express';
+import { AuthService }  from './auth.service.js';
+import type { Profile } from './user.entity.js';
 
 export type AuthRequest = Request & { user: Profile };
 

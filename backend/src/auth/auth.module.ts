@@ -8,6 +8,7 @@ import { AuthService }     from './auth.service.js';
 import { SessionService }  from './session.service.js';
 import { AuthGuard }       from './auth.guard.js';
 import { OriginGuard }     from './origin.guard.js';
+import { RolesGuard }      from './roles.guard.js';
 import { User }            from './user.entity.js';
 import { AuthSession }     from './auth-session.entity.js';
 
@@ -29,7 +30,7 @@ import { AuthSession }     from './auth-session.entity.js';
     }),
   ],
   controllers: [AuthController],
-  providers:   [AuthService, SessionService, AuthGuard, OriginGuard],
-  exports:     [AuthGuard, AuthService],
+  providers:   [AuthService, SessionService, AuthGuard, OriginGuard, RolesGuard],
+  exports:     [AuthGuard, AuthService, OriginGuard, RolesGuard],
 })
 export class AuthModule {}

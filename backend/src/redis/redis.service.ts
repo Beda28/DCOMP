@@ -1,6 +1,6 @@
-import { Injectable, Logger }                         from '@nestjs/common';
-import type { OnModuleInit, OnApplicationShutdown }    from '@nestjs/common';
-import { createClient }                               from 'redis';
+import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
+import { createClient }       from 'redis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnApplicationShutdown {

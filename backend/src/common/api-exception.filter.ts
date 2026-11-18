@@ -1,7 +1,7 @@
-import { randomUUID }                                 from 'node:crypto';
-import { Catch, HttpException, Logger }                from '@nestjs/common';
-import type { ArgumentsHost, ExceptionFilter }        from '@nestjs/common';
-import type { Response }                              from 'express';
+import { randomUUID }                          from 'node:crypto';
+import { Catch, HttpException, Logger }        from '@nestjs/common';
+import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+import type { Response }                       from 'express';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {

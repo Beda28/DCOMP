@@ -16,7 +16,10 @@ docker compose exec backend npm run seed:admin
 - 중지: `docker compose down`
 
 관리자 생성은 최초 1회만 실행한다. 아이디·비밀번호로 로그인하며 회원가입하면 직원 계정으로 바로 로그인된다.
-화면은 `/`, `/login`, `/signup`, `/health`, 인증 API는 `/api/v1/auth`에 있다.
+화면은 `/`, `/login`, `/signup`, `/health`, `/partners`, `/items`에 있다.
+거래처·품목은 목록, 등록(`/new`), 상세(`/:id`) 화면으로 나뉜다.
+인증·거래처·품목 API는 `/api/v1/auth`, `/api/v1/partners`, `/api/v1/items`에 있다.
+직원은 거래처 등록·수정과 품목 조회가 가능하다. 품목 변경과 거래처·품목 비활성화는 관리자만 가능하다.
 로컬 HTTP는 `COOKIE_SECURE=false`, HTTPS에서는 `true`로 설정한다.
 
 ## 구조
@@ -33,11 +36,11 @@ Nginx만 외부에 공개한다. Health는 MySQL·Redis·FastAPI 연결을 확�
 
 빈 MySQL 볼륨으로 처음 실행하면 `mysql/init/01-schema.sql`의 9개 테이블을 생성한다. 재시작 시 기존 DB를 유지한다.
 
-DB·인증 검증은 별도 임시 MySQL·Redis에서 실행한다.
+DB·인증·거래처·품목 검증은 별도 임시 MySQL·Redis에서 실행한다.
 
 ```sh
 docker compose -f compose.test.yml up --build --abort-on-container-exit --exit-code-from test
 docker compose -f compose.test.yml down
 ```
 
-화면 검증은 `frontend`에서 `npx playwright install chromium` 후 `npm run test:browser`로 실행한다. 임시 회원 계정은 검증 후 삭제한다.
+화면 검증은 `frontend`에서 `npx playwright install chromium` 후 `npm run test:browser`로 실행한다. 테스트가 생성한 계정·거래처·품목은 검증 후 삭제한다.

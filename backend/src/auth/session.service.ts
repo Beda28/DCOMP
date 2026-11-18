@@ -1,10 +1,10 @@
-import { Injectable }                        from '@nestjs/common';
+import { Injectable }                   from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { DataSource, IsNull, MoreThan }        from 'typeorm';
-import type { EntityManager }                from 'typeorm';
-import { AuthSession }                       from './auth-session.entity.js';
-import { User }                              from './user.entity.js';
-import { apiError }                          from '../common/api-error.js';
+import { DataSource, IsNull, MoreThan } from 'typeorm';
+import type { EntityManager }           from 'typeorm';
+import { AuthSession }                  from './auth-session.entity.js';
+import { User }                         from './user.entity.js';
+import { apiError }                     from '../common/api-error.js';
 
 export const refreshLifetime = 7 * 24 * 60 * 60;
 

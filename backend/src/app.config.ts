@@ -1,7 +1,7 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
-import cookieParser                             from 'cookie-parser';
-import { ApiExceptionFilter }                   from './common/api-exception.filter.js';
-import { apiError }                             from './common/api-error.js';
+import cookieParser           from 'cookie-parser';
+import { ApiExceptionFilter } from './common/api-exception.filter.js';
+import { apiError }           from './common/api-error.js';
 
 export const configureApp = (app: INestApplication): void => {
   app.setGlobalPrefix('api/v1');

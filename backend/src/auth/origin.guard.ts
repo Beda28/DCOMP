@@ -1,6 +1,6 @@
 import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
-import type { Request }                                       from 'express';
-import { apiError }                                           from '../common/api-error.js';
+import type { Request } from 'express';
+import { apiError }     from '../common/api-error.js';
 
 @Injectable()
 export class OriginGuard implements CanActivate {

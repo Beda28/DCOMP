@@ -1,7 +1,7 @@
-import axios                                       from 'axios';
-import client, { refreshAccessToken }               from './client';
+import axios         from 'axios';
+import client, { refreshAccessToken } from './client';
 import { clearSession, finishRestore, getRevision, lockSession, setToken, setUser } from './session';
-import type { User }                               from './session';
+import type { User } from './session';
 
 let restoring: Promise<void> | null = null;
 

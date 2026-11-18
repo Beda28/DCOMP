@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { DataSource }                              from 'typeorm';
-import { RedisService }                            from '../redis/redis.service.js';
+import { DataSource }   from 'typeorm';
+import { RedisService } from '../redis/redis.service.js';
 
 type Status = 'ok' | 'error';
 

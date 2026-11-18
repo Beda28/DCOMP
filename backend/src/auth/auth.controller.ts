@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Header, HttpCode, HttpException, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard }                                                       from '@nestjs/throttler';
-import type { CookieOptions, Request, Response }                                          from 'express';
-import { AuthService }                                                                   from './auth.service.js';
-import { AuthGuard, type AuthRequest }                                                    from './auth.guard.js';
-import { OriginGuard }                                                                   from './origin.guard.js';
-import { LoginDto, SignupDto }                                                           from './auth.dto.js';
-import { refreshLifetime }                                                               from './session.service.js';
+import { Throttle, ThrottlerGuard }    from '@nestjs/throttler';
+import type { CookieOptions, Request, Response } from 'express';
+import { AuthService }                 from './auth.service.js';
+import { AuthGuard, type AuthRequest } from './auth.guard.js';
+import { OriginGuard }                 from './origin.guard.js';
+import { LoginDto, SignupDto }         from './auth.dto.js';
+import { refreshLifetime }             from './session.service.js';
 
 const cookieOptions = (): CookieOptions => ({
   httpOnly: true,

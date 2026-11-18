@@ -1,9 +1,9 @@
-import { useState, type SubmitEvent }               from 'react';
+import { useState, type SubmitEvent }        from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import styled                                       from 'styled-components';
-import { authMessage, login, signup }               from '../api/auth';
-import { useSession }                               from '../api/session';
-import { Button, Card, Field, Input, Title }        from './ui';
+import styled                                from 'styled-components';
+import { authMessage, login, signup }        from '../api/auth';
+import { useSession }                        from '../api/session';
+import { Button, Card, Field, Input, Title } from './ui';
 
 const Form = styled.form`
   display: grid;

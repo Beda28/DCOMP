@@ -1,9 +1,9 @@
 import { useEffect, useState }  from 'react';
-import styled                  from 'styled-components';
-import { health }              from '../api/health';
+import styled                   from 'styled-components';
+import { health }               from '../api/health';
 import type { Health, Service } from '../api/health';
 import { Button, Card, Title }  from '../components/ui';
-import StatusRow               from '../components/status-row';
+import StatusRow                from '../components/status-row';
 
 const ServiceList = styled.dl`
   margin: 24px 0;
