@@ -19,3 +19,23 @@ export const Button = styled.button`
   &:disabled { opacity: 0.5; cursor: wait; }
   &:focus-visible { outline: 3px solid #3b82f6; outline-offset: 3px; }
 `;
+
+export const Field = styled.label`
+  display: grid;
+  gap: 8px;
+`;
+
+export const Input = styled.input`
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+
+  &:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+`;
+
+export const Title = styled.h1`
+  margin: 0;
+  font-size: 28px;
+`;

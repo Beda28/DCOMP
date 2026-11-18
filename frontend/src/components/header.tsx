@@ -1,0 +1,88 @@
+import { useState }             from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import styled                   from 'styled-components';
+import { authMessage, logout }  from '../api/auth';
+import { useSession }           from '../api/session';
+import { Button }               from './ui';
+
+const Bar = styled.header`
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+`;
+
+const Navigation = styled.nav`
+  width: min(100% - 40px, 960px);
+  margin: 0 auto;
+  padding: 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+`;
+
+const Group = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+`;
+
+const MenuLink = styled(NavLink)`
+  color: #475569;
+  text-decoration: none;
+
+  &[aria-current='page'] { color: #0f172a; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #3b82f6; outline-offset: 4px; }
+`;
+
+const ErrorMessage = styled.p`
+  width: min(100% - 40px, 960px);
+  margin: 0 auto;
+  padding-bottom: 16px;
+`;
+
+const Header = () => {
+  const { user, ready }       = useSession();
+  const [pending, setPending] = useState(false);
+  const [error, setError]     = useState('');
+  const navigate             = useNavigate();
+
+  const signOut = async (): Promise<void> => {
+    setPending(true);
+    setError('');
+    try {
+      await logout();
+      navigate('/', { replace: true });
+    }
+    catch (error) { setError(authMessage(error)); }
+    finally       { setPending(false); }
+  };
+
+  return (
+    <Bar>
+      <Navigation aria-label="메인 메뉴">
+        <Group>
+          <MenuLink to="/" end>DCOMP</MenuLink>
+          <MenuLink to="/health">헬스체크</MenuLink>
+        </Group>
+        <Group>
+          {!ready ? <span role="status">로그인 확인 중...</span> : user ? (
+            <>
+              <span>{user.username} · {user.role === 'ADMIN' ? '관리자' : '직원'}</span>
+              <Button onClick={signOut} disabled={pending}>{pending ? '로그아웃 중...' : '로그아웃'}</Button>
+            </>
+          ) : (
+            <>
+              <MenuLink to="/login">로그인</MenuLink>
+              <MenuLink to="/signup">회원가입</MenuLink>
+            </>
+          )}
+        </Group>
+      </Navigation>
+      {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
+    </Bar>
+  );
+};
+
+export default Header;

@@ -6,6 +6,10 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
+FROM build AS test
+COPY test ./test
+CMD ["npm", "test"]
+
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
