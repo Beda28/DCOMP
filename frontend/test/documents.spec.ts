@@ -55,6 +55,16 @@ test('문서 업로드부터 실제 OCR·미리보기·보정 충돌·재처리�
     await page.getByLabel('검색', { exact: true }).fill('다른 창에서');
     await page.getByRole('button', { name: '검색', exact: true }).click();
     await expect(page.getByRole('link', { name: '검증 문서.png' })).toBeVisible();
+    await page.getByRole('link', { name: '검색', exact: true }).click();
+    await page.getByLabel('검색어').fill('다른 창에서');
+    await page.getByRole('button', { name: '검색', exact: true }).click();
+    await expect(page.getByRole('article')).toContainText('다른 창에서 저장한 내용');
+    await expect(page.getByRole('link', { name: '검증 문서.png' })).toBeVisible();
+    await page.getByLabel('검색어').fill('unknownenglishword');
+    await page.getByRole('button', { name: '검색', exact: true }).click();
+    await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('link', { name: '검증 문서.png' })).toBeVisible();
   }
   finally { removeCompany(company.id); }
 });

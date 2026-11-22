@@ -8,11 +8,12 @@ import { OrganizationsModule } from './organizations/organizations.module.js';
 import { UsersModule }         from './users/users.module.js';
 import { TransactionsModule }  from './transactions/transactions.module.js';
 import { DocumentsModule }     from './documents/documents.module.js';
+import { SearchModule }        from './search/search.module.js';
 
 @Module({
   imports: [
     DatabaseModule, HealthModule, AuthModule, OrganizationsModule,
-    UsersModule, PartnersModule, ItemsModule, TransactionsModule, DocumentsModule,
+    UsersModule, PartnersModule, ItemsModule, TransactionsModule, DocumentsModule, SearchModule,
   ],
 })
 export class AppModule {}

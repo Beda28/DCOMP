@@ -16,9 +16,9 @@ docker compose up -d --build --wait
 
 `/start`에서 회사를 등록하면 첫 관리자 계정으로 바로 로그인된다. 이후 회사 코드 6자리·아이디·비밀번호로 로그인한다.
 관리자는 `/settings/users`에서 직원을 생성하고 활성 상태·비밀번호를 관리한다. 회사 코드는 `/settings/company`에서 확인한다.
-화면은 `/`, `/login`, `/start`, `/health`, `/partners`, `/items`, `/transactions`, `/documents`, `/settings/company`, `/settings/users`에 있다.
+화면은 `/`, `/login`, `/start`, `/health`, `/partners`, `/items`, `/transactions`, `/documents`, `/search`, `/settings/company`, `/settings/users`에 있다.
 거래처·품목·거래는 목록, 등록(`/new`), 상세(`/:id`) 화면으로 나뉜다.
-API는 `/api/v1` 아래 `auth`, `organizations`, `users`, `partners`, `items`, `transactions`, `documents`로 나뉜다.
+API는 `/api/v1` 아래 `auth`, `organizations`, `users`, `partners`, `items`, `transactions`, `documents`, `search/documents`로 나뉜다.
 직원은 거래처 등록·수정과 품목 조회가 가능하다. 품목 변경과 거래처·품목 비활성화는 관리자만 가능하다.
 직원은 본인 담당 거래만 조회·수정·확정할 수 있다. 관리자는 전체 거래 조회·담당자 변경·취소가 가능하다. 확정·취소된 거래 내용은 수정할 수 없다.
 거래번호는 16자리 16진수이며, 새로 배정된 미열람 거래에는 NEW가 표시된다.
@@ -30,13 +30,14 @@ API는 `/api/v1` 아래 `auth`, `organizations`, `users`, `partners`, `items`, `
 직원은 미연결 문서 중 본인 업로드와 본인 담당 거래의 연결 문서를 볼 수 있다. 관리자는 회사 전체 문서에 접근한다.
 문서 상세에서 거래·거래처 연결, OCR 재처리, 인식 내용·상호·날짜·금액·사업자번호 보정과 변경 이력을 확인한다. 재처리해도 사용자 보정은 유지된다.
 업로드는 `Idempotency-Key`로 중복 요청을 방지한다. DB에 기록한 작업을 BullMQ로 전달하고 일시적 오류는 최대 3회 시도한다. 등록 누락 작업은 주기적으로 복구한다.
+`/search`는 접근 가능한 문서의 파일명·보정 우선 텍스트·추출 항목을 TF-IDF 관련도 순으로 검색한다. 종류·상태·업로드 기간·거래처로 필터링한다. 한 번에 5,000건 또는 텍스트 8MiB를 넘으면 필터로 범위를 좁혀야 한다.
 
 ## 구조
 
 - Nginx: 80 포트, React 빌드 파일 서빙, `/api/v1` 프록시
 - Frontend: React · TypeScript · styled-components
 - Backend: NestJS · TypeORM · MySQL · Redis
-- FastAPI: 내부 `/internal/health`, `/internal/ocr`, OpenCV 문서 보정·Tesseract 한국어/영어 OCR·PDF 처리
+- FastAPI: 내부 `/internal/health`, `/internal/ocr`, `/internal/search`, OpenCV 문서 보정·Tesseract 한국어/영어 OCR·PDF 처리·TF-IDF 검색
 
 Nginx만 외부에 공개한다. Health는 MySQL·Redis·FastAPI 연결을 확인하며 정상 200, 실패 503을 반환한다.
 프론트 컨테이너는 빌드 파일을 복사한 뒤 정상 종료된다.

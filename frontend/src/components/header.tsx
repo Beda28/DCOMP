@@ -73,6 +73,7 @@ const Header = () => {
           {user && <><MenuLink to="/partners">거래처</MenuLink><MenuLink to="/items">품목</MenuLink></>}
           {user && <MenuLink to="/transactions">거래</MenuLink>}
           {user && <MenuLink to="/documents">문서</MenuLink>}
+          {user && <MenuLink to="/search">검색</MenuLink>}
           {user && <MenuLink to="/settings/company">회사 정보</MenuLink>}
           {user?.role === 'ADMIN' && <MenuLink to="/settings/users">직원 관리</MenuLink>}
           <MenuLink to="/health">헬스체크</MenuLink>

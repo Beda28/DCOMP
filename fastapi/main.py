@@ -1,7 +1,9 @@
 from fastapi       import FastAPI
 from router.health import router as health
 from router.ocr    import router as ocr
+from router.search import router as search
 
 app = FastAPI(title="DCOMP Processing", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(health)
 app.include_router(ocr)
+app.include_router(search)

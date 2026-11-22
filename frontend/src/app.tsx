@@ -17,6 +17,7 @@ import Transaction              from './pages/transaction';
 import Documents                from './pages/documents';
 import Document                 from './pages/document';
 import DocumentUpload           from './pages/document-upload';
+import Search                   from './pages/search';
 import { Page }                 from './app.styles';
 
 const App = () => {
@@ -32,7 +33,7 @@ const App = () => {
   return (
     <>
       <Header />
-      <Page $wide={['/partners', '/items', '/transactions', '/documents', '/settings/users'].some(path => pathname.startsWith(path))}>
+      <Page $wide={['/partners', '/items', '/transactions', '/documents', '/search', '/settings/users'].some(path => pathname.startsWith(path))}>
         {error && <p role="alert">{error}</p>}
         <Routes>
           <Route path="/"       element={<Home />} />
@@ -55,6 +56,7 @@ const App = () => {
             <Route path="/documents"     element={<Documents />} />
             <Route path="/documents/new" element={<DocumentUpload />} />
             <Route path="/documents/:id" element={<Document />} />
+            <Route path="/search" element={<Search />} />
           </Route>
           <Route path="*" element={<><h1>페이지를 찾을 수 없습니다.</h1><Link to="/">메인으로</Link></>} />
         </Routes>
