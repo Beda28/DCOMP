@@ -13,6 +13,7 @@ if (process.env.DB_NAME !== 'dcomp_test') throw new Error('전용 dcomp_test DB�
 
 test('문서 검색 권한·보정 반영·필터·서비스 장애', async context => {
   process.env.DOCUMENT_WORKER_ENABLED = 'false';
+  process.env.FASTAPI_ENABLED = 'true';
   let received;
   let responseStatus = 200;
   let beforeResponse = async () => {};

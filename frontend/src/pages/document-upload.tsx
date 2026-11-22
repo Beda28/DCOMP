@@ -2,6 +2,7 @@ import { useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { uploadDocument, type DocumentKind, type DocumentLinks as Links } from '../api/documents';
 import { authMessage }       from '../api/auth';
+import { processingEnabled } from '../config';
 import DocumentLinks         from '../components/document-links';
 import { FormFields }        from '../components/document-correction';
 import { Button, Card, Field, Input, Title } from '../components/ui';
@@ -37,7 +38,7 @@ const DocumentUpload = () => {
       <form onSubmit={submit} onChange={() => { key.current = crypto.randomUUID(); }}>
         <FormFields disabled={pending}>
           <Stack>
-            <p>PNG·JPEG·PDF, 최대 20MB. PDF는 10페이지까지 처리합니다. 업로드 후 문자와 주요 항목을 자동으로 추출합니다.</p>
+            <p>PNG·JPEG·PDF, 최대 20MB. {processingEnabled ? 'PDF는 10페이지까지 처리합니다. 업로드 후 문자와 주요 항목을 자동으로 추출합니다.' : '자동 인식은 개발 보류 상태입니다. 업로드 후 내용을 직접 입력할 수 있습니다.'}</p>
             <Field>문서 파일<Input name="file" type="file" accept="image/png,image/jpeg,application/pdf" required /></Field>
             <Field>문서 종류<Select name="kind"><option value="RECEIPT">영수증</option><option value="INVOICE">거래명세서</option><option value="OTHER">기타</option></Select></Field>
             <DocumentLinks value={links} onChange={value => { setLinks(value); key.current = crypto.randomUUID(); }} />

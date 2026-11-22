@@ -10,7 +10,7 @@ test('회사 등록·자동 로그인·회사 코드·갱신·로그아웃·다�
     await page.goto('/');
     await expect(page.locator('form')).toHaveCount(0);
     await page.getByRole('link', { name: '헬스체크', exact: true }).click();
-    await expect(page.locator('[data-status=ok]')).toHaveCount(3);
+    await expect(page.locator('[data-status=ok]')).toHaveCount(process.env.FASTAPI_ENABLED === 'true' ? 3 : 2);
     await page.getByRole('navigation').getByRole('link', { name: '회사 등록', exact: true }).click();
     await expect(page).toHaveURL('/start');
     await expect(page.locator('input[type=email], input[name=role]')).toHaveCount(0);
@@ -65,6 +65,7 @@ test('회사 등록·자동 로그인·회사 코드·갱신·로그아웃·다�
     await page.getByRole('button', { name: '로그인', exact: true }).click();
     await expect(page).toHaveURL('/');
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
+    await expect(page.getByRole('navigation').getByRole('link', { name: '로그인', exact: true })).toBeVisible();
     await page.goto('/signup');
     await expect(page).toHaveURL('/start');
     expect(errors).toEqual([]);

@@ -10,6 +10,7 @@ import { Document }          from './document.entity.js';
 import { DocumentJob }       from './document-job.entity.js';
 import { DocumentEdit }      from './document-edit.entity.js';
 import { StorageService }    from './storage.service.js';
+import { processingEnabled } from '../common/processing.js';
 import type { CorrectDocumentDto, DocumentQueryDto, LinkDocumentDto, UploadDocumentDto } from './document.dto.js';
 
 @Injectable()
@@ -114,9 +115,9 @@ export class DocumentsService {
         const document = await db.save(Document, db.create(Document, {
           ...metadata, ...links, organizationId: actor.organizationId, uploadedBy: actor.id,
           kind: input.kind, storageKey, uploadKey: key ?? null, uploadRequestHash: key ? requestHash : null,
-          currentJobVersion: 1,
+          currentJobVersion: processingEnabled() ? 1 : 0,
         }));
-        await this.job(db, document.id, 1);
+        if (processingEnabled()) await this.job(db, document.id, 1);
         return document.id;
       });
     }
@@ -139,7 +140,8 @@ export class DocumentsService {
     await this.database.transaction(async db => {
       const document = await this.find(db, actor, id, true);
       this.checkRevision(document, expectedRevision);
-      if (!['READY', 'FAILED'].includes(document.status)) throw apiError(409, 'DOCUMENT_BUSY', '이미 처리 중인 문서입니다.');
+      if (!processingEnabled()) throw apiError(501, 'PROCESSING_DISABLED', 'OCR은 개발 보류 상태입니다. 문서는 직접 입력할 수 있습니다.');
+      if (document.currentJobVersion > 0 && !['READY', 'FAILED'].includes(document.status)) throw apiError(409, 'DOCUMENT_BUSY', '이미 처리 중인 문서입니다.');
       const version = document.currentJobVersion + 1;
       await this.job(db, id, version);
       await db.update(Document, id, { status: 'UPLOADED', currentJobVersion: version, revision: document.revision + 1 });
@@ -168,7 +170,7 @@ export class DocumentsService {
     await this.database.transaction(async db => {
       const document = await this.find(db, actor, id, true);
       this.checkRevision(document, input.expectedRevision);
-      if (!['READY', 'FAILED'].includes(document.status)) throw apiError(409, 'DOCUMENT_BUSY', '처리가 끝난 뒤 보정해주세요.');
+      if (processingEnabled() && document.currentJobVersion > 0 && !['READY', 'FAILED'].includes(document.status)) throw apiError(409, 'DOCUMENT_BUSY', '처리가 끝난 뒤 보정해주세요.');
       const beforeText = document.correctedText ?? document.ocrText;
       const beforeJson = document.correctedJson ?? document.extractedJson;
       const afterText  = input.correctedText ?? beforeText;

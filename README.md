@@ -1,6 +1,7 @@
 # DCOMP
 
-거래·문서 관리 시스템.
+ERP의 회사·권한·기준정보·매입/매출 거래를 다루는 기본 시스템.
+재고·입출고·수금/지급·회계는 아직 구현하지 않았다. FastAPI의 OCR·관련도 검색은 개발 보류이며 기본 실행에서 제외한다.
 
 ## 실행
 
@@ -22,15 +23,18 @@ API는 `/api/v1` 아래 `auth`, `organizations`, `users`, `partners`, `items`, `
 직원은 거래처 등록·수정과 품목 조회가 가능하다. 품목 변경과 거래처·품목 비활성화는 관리자만 가능하다.
 직원은 본인 담당 거래만 조회·수정·확정할 수 있다. 관리자는 전체 거래 조회·담당자 변경·취소가 가능하다. 확정·취소된 거래 내용은 수정할 수 없다.
 거래번호는 16자리 16진수이며, 새로 배정된 미열람 거래에는 NEW가 표시된다.
-거래 금액은 라인별 소수 둘째 자리 반올림 후 합산한다. 수정 시 `expectedRevision`이 다르면 409를 반환한다.
+거래 금액은 라인별 소수 둘째 자리 반올림 후 합산한다. 수정·담당자 변경·확정·취소 시 `expectedRevision`이 다르면 409를 반환한다.
 계정·거래처·품목·거래는 회사별로 분리된다. 직원 비활성화·비밀번호 초기화 시 해당 계정의 기존 로그인이 모두 해제된다.
 로컬 HTTP는 `COOKIE_SECURE=false`, HTTPS에서는 `true`로 설정한다.
 
-문서는 `/documents/new`에서 PNG·JPEG·PDF(20MB 이하, PDF 10페이지 이하)를 업로드한다. 원본은 내부 공유 볼륨에 보관하며 인증된 다운로드·미리보기만 허용한다.
+문서는 `/documents/new`에서 PNG·JPEG·PDF(20MB 이하)를 업로드한다. 원본은 내부 공유 볼륨에 보관하며 인증된 다운로드·미리보기만 허용한다.
 직원은 미연결 문서 중 본인 업로드와 본인 담당 거래의 연결 문서를 볼 수 있다. 관리자는 회사 전체 문서에 접근한다.
-문서 상세에서 거래·거래처 연결, OCR 재처리, 인식 내용·상호·날짜·금액·사업자번호 보정과 변경 이력을 확인한다. 재처리해도 사용자 보정은 유지된다.
-업로드는 `Idempotency-Key`로 중복 요청을 방지한다. DB에 기록한 작업을 BullMQ로 전달하고 일시적 오류는 최대 3회 시도한다. 등록 누락 작업은 주기적으로 복구한다.
-`/search`는 접근 가능한 문서의 파일명·보정 우선 텍스트·추출 항목을 TF-IDF 관련도 순으로 검색한다. 종류·상태·업로드 기간·거래처로 필터링한다. 한 번에 5,000건 또는 텍스트 8MiB를 넘으면 필터로 범위를 좁혀야 한다.
+문서 상세에서 거래·거래처 연결, 내용·상호·날짜·금액·사업자번호 직접 입력과 변경 이력을 확인한다.
+업로드는 `Idempotency-Key`로 중복 요청을 방지한다. 문서 목록에서 파일명·입력 내용 검색과 종류·상태·업로드 기간·거래처 필터를 사용할 수 있다.
+기본 설정에서는 OCR 작업을 만들지 않으며 `/search`는 개발 보류 안내를 표시한다. 기존 인식 결과와 보정 이력은 유지한다.
+
+보존한 FastAPI 연동 코드를 검토할 때만 `.env`에 `FASTAPI_ENABLED=true`를 설정하고 `docker compose --profile processing up -d --build --wait`로 실행한다. 프론트에도 빌드 시 같은 설정이 적용된다. 별도 Vite 개발 서버에서는 `VITE_FASTAPI_ENABLED=true`가 필요하다.
+해당 모드에서는 PDF 최대 10페이지 OCR·BullMQ 재시도·TF-IDF 검색을 사용하며, 검색은 5,000건 또는 텍스트 8MiB까지다. 기본 모드로 돌아갈 때는 설정을 false로 바꾸고 `docker compose --profile processing stop fastapi` 후 다시 빌드한다.
 
 ## 구조
 
@@ -39,7 +43,7 @@ API는 `/api/v1` 아래 `auth`, `organizations`, `users`, `partners`, `items`, `
 - Backend: NestJS · TypeORM · MySQL · Redis
 - FastAPI: 내부 `/internal/health`, `/internal/ocr`, `/internal/search`, OpenCV 문서 보정·Tesseract 한국어/영어 OCR·PDF 처리·TF-IDF 검색
 
-Nginx만 외부에 공개한다. Health는 MySQL·Redis·FastAPI 연결을 확인하며 정상 200, 실패 503을 반환한다.
+Nginx만 외부에 공개한다. Health는 MySQL·Redis 연결을 확인하며 정상 200, 실패 503을 반환한다. FastAPI는 활성화한 경우에만 검사하고 기본값은 `disabled`다.
 프론트 컨테이너는 빌드 파일을 복사한 뒤 정상 종료된다.
 
 ## DB

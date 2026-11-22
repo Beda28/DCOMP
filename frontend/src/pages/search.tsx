@@ -4,6 +4,7 @@ import { searchDocuments, type SearchHit } from '../api/search';
 import { documentStatusLabel, kindLabel } from '../api/documents';
 import type { ListResult }  from '../api/catalog';
 import { authMessage }      from '../api/auth';
+import { processingEnabled } from '../config';
 import CatalogPicker        from '../components/catalog-picker';
 import { Button, Card, Field, Input, Title } from '../components/ui';
 import { Badge, Breadcrumb, Empty, EntryLink, Heading, Message, Pagination, ResultHeader, Results, Row, Select, Stack } from '../components/catalog.styles';
@@ -26,7 +27,7 @@ const Hit = styled.article`
   p { line-height: 1.7; color: #475569; white-space: pre-wrap; }
 `;
 
-const Search = () => {
+const SearchResults = () => {
   const [params, setParams]   = useSearchParams();
   const [result, setResult]   = useState<ListResult<SearchHit> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,5 +97,9 @@ const Search = () => {
     </Results>}
   </Stack>;
 };
+
+const Search = () => processingEnabled ? <SearchResults /> : (
+  <Card><Title>문서 관련도 검색</Title><p>개발 보류 상태입니다. 문서 목록에서 파일명과 직접 입력한 내용을 검색할 수 있습니다.</p><Link to="/documents">문서 목록</Link></Card>
+);
 
 export default Search;

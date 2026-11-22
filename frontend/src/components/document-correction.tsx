@@ -4,7 +4,7 @@ import { Button, Field, Input } from './ui';
 import { Stack } from './catalog.styles';
 import styled from 'styled-components';
 
-export const TextArea = styled.textarea`
+const TextArea = styled.textarea`
   width: 100%;
   min-height: 200px;
   resize: vertical;
@@ -40,7 +40,7 @@ const DocumentCorrection = ({ entry, pending, onDirty, onSave }: Props) => {
   return <form onSubmit={submit} onChange={onDirty}>
     <FormFields disabled={pending}>
       <Stack>
-        <h2>인식 결과 보정</h2>
+        <h2>문서 내용 입력·수정</h2>
         <Field>상호<Input name="title" maxLength={160} defaultValue={fields?.title ?? ''} /></Field>
         <Field>문서 날짜<Input name="date" type="date" min="1000-01-01" max="9999-12-31" defaultValue={fields?.date ?? ''} /></Field>
         <Field>합계 금액<Input name="amount" inputMode="decimal" pattern="(0|[1-9][0-9]{0,17})(\.[0-9]{1,2})?" defaultValue={fields?.amount ?? ''} /></Field>

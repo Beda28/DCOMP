@@ -3,6 +3,7 @@ import { Queue, Worker, UnrecoverableError, type Job } from 'bullmq';
 import { DataSource, In }       from 'typeorm';
 import { Document, type DocumentFields } from './document.entity.js';
 import { DocumentJob }         from './document-job.entity.js';
+import { processingEnabled }   from '../common/processing.js';
 
 type Work = { documentId: number; version: number };
 type OcrResult = { text: string; fields: DocumentFields };
@@ -19,7 +20,7 @@ export class DocumentWorker implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly database: DataSource) {}
 
   async onModuleInit(): Promise<void> {
-    if (process.env.DOCUMENT_WORKER_ENABLED === 'false') return;
+    if (!processingEnabled() || process.env.DOCUMENT_WORKER_ENABLED === 'false') return;
     const url = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
     const connection = {
       host: url.hostname, port: Number(url.port || 6379), db: Number(url.pathname.slice(1) || 0),

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { correctDocument, documentFile, documentStatusLabel, getDocument, isProcessing, kindLabel, linkDocument, retryDocument, type DocumentDetail, type DocumentFields, type DocumentLinks as Links } from '../api/documents';
 import { authMessage } from '../api/auth';
+import { processingEnabled } from '../config';
 import DocumentCorrection, { FormFields } from '../components/document-correction';
 import DocumentHistory, { OriginalText } from '../components/document-history';
 import DocumentLinks from '../components/document-links';
@@ -34,7 +35,7 @@ const DocumentPage = () => {
     return () => controller.abort();
   }, [id, reload]);
 
-  const processing = !!entry && isProcessing(entry.status);
+  const processing = processingEnabled && !!entry && entry.currentJobVersion > 0 && isProcessing(entry.status);
   useEffect(() => {
     if (!processing || !id) return;
     const controller = new AbortController();
@@ -98,11 +99,12 @@ const DocumentPage = () => {
         <h2>{entry.originalFilename}</h2>
         <Row><Badge $active={entry.status === 'READY'}>{documentStatusLabel[entry.status]}</Badge><span>{kindLabel[entry.kind]} · {(Number(entry.sizeBytes) / 1024).toFixed(1)}KB</span></Row>
         {processing && <p role="status">문서를 처리하고 있습니다. 결과는 자동으로 갱신됩니다.</p>}
+        {!processingEnabled && <p>자동 인식은 개발 보류 상태입니다. 원본을 확인하고 문서 내용을 직접 입력해주세요.</p>}
         {entry.jobs[0]?.errorMessage && <Message $error={entry.status === 'FAILED'}>{entry.jobs[0].errorMessage}</Message>}
         <Row>
           <Button $variant="secondary" disabled={pending} onClick={() => showFile(false)}>원본 미리보기</Button>
           <Button $variant="secondary" disabled={pending} onClick={() => showFile(true)}>원본 다운로드</Button>
-          <Button $variant="secondary" disabled={pending || processing || dirty} onClick={() => mutate(() => retryDocument(entry), '재처리를 요청했습니다. 보정 내용은 유지됩니다.')}>OCR 재처리</Button>
+          {processingEnabled && <Button $variant="secondary" disabled={pending || processing || dirty} onClick={() => mutate(() => retryDocument(entry), '재처리를 요청했습니다. 보정 내용은 유지됩니다.')}>OCR 재처리</Button>}
         </Row>
         {preview && <Preview>{entry.contentType === 'application/pdf' ? <iframe title="문서 원본" src={preview} sandbox="" /> : <img src={preview} alt="문서 원본" />}</Preview>}
       </Stack></Card>

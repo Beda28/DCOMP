@@ -2,7 +2,10 @@ name: dcomp
 
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_FASTAPI_ENABLED: ${FASTAPI_ENABLED:-false}
     network_mode: none
     volumes:
       - frontend-dist:/shared
@@ -20,6 +23,7 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       REDIS_URL: redis://redis:6379
       FASTAPI_URL: http://fastapi:8000
+      FASTAPI_ENABLED: ${FASTAPI_ENABLED:-false}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
@@ -32,8 +36,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      fastapi:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health', { signal: AbortSignal.timeout(4000) }).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
@@ -43,6 +45,7 @@ services:
     restart: unless-stopped
 
   fastapi:
+    profiles: [processing]
     build: ./fastapi
     stop_grace_period: 180s
     volumes:

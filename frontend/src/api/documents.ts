@@ -22,7 +22,7 @@ export type DocumentEdit = {
 export type DocumentLinks = { partnerId: number | null; transactionId: number | null };
 
 export const kindLabel = { RECEIPT: '영수증', INVOICE: '거래명세서', OTHER: '기타' };
-export const documentStatusLabel = { UPLOADED: '등록 대기', QUEUED: '처리 대기', PROCESSING: '처리 중', READY: '처리 완료', FAILED: '처리 실패' };
+export const documentStatusLabel = { UPLOADED: '업로드 완료', QUEUED: '처리 대기', PROCESSING: '처리 중', READY: '처리 완료', FAILED: '처리 실패' };
 export const isProcessing = (status: DocumentStatus): boolean => ['UPLOADED', 'QUEUED', 'PROCESSING'].includes(status);
 
 export const listDocuments = async (params: URLSearchParams, signal?: AbortSignal): Promise<ListResult<DocumentSummary>> => (

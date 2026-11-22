@@ -19,6 +19,7 @@ test('문서 업로드·권한·보정·작업 복구', async context => {
   const folder = await mkdtemp(join(tmpdir(), 'dcomp-documents-'));
   process.env.UPLOAD_DIR = folder;
   process.env.DOCUMENT_WORKER_ENABLED = 'false';
+  process.env.FASTAPI_ENABLED = 'true';
   process.env.DOCUMENT_QUEUE_PREFIX = `document-test-${Date.now()}`;
   let processingStatus = 200;
   let processingDelay = 0;
@@ -113,6 +114,42 @@ test('문서 업로드·권한·보정·작업 복구', async context => {
       assert.equal(response.headers.get('content-type'), 'image/png');
       assert.equal(response.headers.get('cache-control'), 'no-store');
       assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
+    });
+
+    await context.test('FastAPI 없이 업로드·직접 입력·검색·연결이 가능하고 OCR 작업은 생성하지 않음', async () => {
+      process.env.FASTAPI_ENABLED = 'false';
+      process.env.DOCUMENT_WORKER_ENABLED = 'true';
+      try {
+        await worker.onModuleInit();
+        assert.equal(worker.queue, undefined);
+        const health = await request('health');
+        assert.equal(health.status, 200, JSON.stringify(health.body));
+        assert.equal(health.body.data.services.fastapi, 'disabled');
+        const saved = (await upload(own.staff, { filename: 'manual.png' })).body.data;
+        assert.equal(saved.status, 'UPLOADED');
+        assert.equal(saved.currentJobVersion, 0);
+        assert.deepEqual(saved.jobs, []);
+        const revised = await request(`documents/${saved.id}/corrections`, {
+          method: 'PATCH', access: own.staff, body: { expectedRevision: 0, correctedText: '수기 증빙', correctedJson: { amount: '1200.00' } },
+        });
+        assert.equal(revised.status, 200, JSON.stringify(revised.body));
+        assert.equal(revised.body.data.correctedText, '수기 증빙');
+        const linked = await request(`documents/${saved.id}/links`, {
+          method: 'PATCH', access: own.staff, body: { expectedRevision: 1, transactionId: own.transaction },
+        });
+        assert.equal(linked.status, 200, JSON.stringify(linked.body));
+        assert.equal(linked.body.data.partnerId, own.partner);
+        const list = await request(`documents?q=${encodeURIComponent('수기 증빙')}`, { access: own.staff });
+        assert.deepEqual(list.body.data.map(row => row.id), [saved.id]);
+        error(await request('search/documents?q=test', { access: own.staff }), 501, 'PROCESSING_DISABLED');
+        error(await request(`documents/${saved.id}/retry`, { method: 'POST', access: own.staff, body: { expectedRevision: 2 } }), 501, 'PROCESSING_DISABLED');
+        process.env.FASTAPI_ENABLED = 'true';
+        assert.equal((await request(`documents/${saved.id}/retry`, { method: 'POST', access: own.staff, body: { expectedRevision: 2 } })).status, 200);
+      }
+      finally {
+        process.env.FASTAPI_ENABLED = 'true';
+        process.env.DOCUMENT_WORKER_ENABLED = 'false';
+      }
     });
 
     await context.test('미연결 문서는 업로더·관리자만 접근, 모든 경로의 회사 격리', async () => {

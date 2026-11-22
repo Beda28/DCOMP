@@ -40,7 +40,7 @@ const HealthPage = () => {
     <Card aria-labelledby="health-title">
       <Title id="health-title">헬스체크</Title>
       <p role="status" aria-live="polite">
-        {pending ? '연결 확인 중...' : error || (result?.status === 'ok' ? '모든 서비스가 정상적으로 연결되었습니다.' : '일부 서비스에 연결할 수 없습니다.')}
+        {pending ? '연결 확인 중...' : error || (result?.status === 'ok' ? '사용 중인 서비스가 정상적으로 연결되었습니다.' : '일부 서비스에 연결할 수 없습니다.')}
       </p>
       {result && (
         <ServiceList>

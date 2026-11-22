@@ -1,8 +1,8 @@
 import client from './client';
 
 export type Service = 'mysql' | 'redis' | 'fastapi';
-export type Status  = 'ok' | 'error';
-export type Health  = { status: Status; services: Record<Service, Status> };
+export type Status  = 'ok' | 'error' | 'disabled';
+export type Health  = { status: 'ok' | 'error'; services: Record<Service, Status> };
 
 type HealthResponse = { data: Health };
 type HealthError    = { error: { details: { service: Service; status: Status }[] } };

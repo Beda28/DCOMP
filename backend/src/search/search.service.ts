@@ -2,6 +2,7 @@ import { Injectable }       from '@nestjs/common';
 import { DataSource }       from 'typeorm';
 import type { Profile }     from '../auth/user.entity.js';
 import { apiError }         from '../common/api-error.js';
+import { processingEnabled } from '../common/processing.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import type { DocumentQueryDto } from '../documents/document.dto.js';
 
@@ -13,6 +14,7 @@ export class SearchService {
   constructor(private readonly database: DataSource, private readonly documents: DocumentsService) {}
 
   async search(actor: Profile, query: DocumentQueryDto) {
+    if (!processingEnabled()) throw apiError(501, 'PROCESSING_DISABLED', '관련도 검색은 개발 보류 상태입니다. 문서 목록의 검색을 이용해주세요.');
     if (!query.q?.trim()) throw apiError(400, 'VALIDATION_ERROR', '검색어를 입력해주세요.');
     const builder = this.documents.filters(actor, query);
     const size = await builder.clone().select('COUNT(*)', 'count')

@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DataSource }   from 'typeorm';
 import { RedisService } from '../redis/redis.service.js';
+import { processingEnabled } from '../common/processing.js';
 
 type Status = 'ok' | 'error';
 
@@ -15,11 +16,11 @@ export class HealthService {
     const [mysql, redis, fastapi] = await Promise.all([
       this.probe(() => this.database.query('SELECT 1')),
       this.probe(() => this.redis.ping()),
-      this.probe(() => this.processing()),
+      processingEnabled() ? this.probe(() => this.processing()) : Promise.resolve('disabled' as const),
     ]);
     const services = { mysql, redis, fastapi };
 
-    if (Object.values(services).some(status => status !== 'ok')) {
+    if (Object.values(services).some(status => status === 'error')) {
       throw new ServiceUnavailableException({ error: {
         code:    'SERVICE_UNAVAILABLE',
         message: '일부 서비스에 연결할 수 없습니다.',
