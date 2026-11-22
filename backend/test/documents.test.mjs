@@ -21,8 +21,10 @@ test('문서 업로드·권한·보정·작업 복구', async context => {
   process.env.DOCUMENT_WORKER_ENABLED = 'false';
   process.env.DOCUMENT_QUEUE_PREFIX = `document-test-${Date.now()}`;
   let processingStatus = 200;
-  const processor = createServer((request, response) => {
+  let processingDelay = 0;
+  const processor = createServer(async (request, response) => {
     request.resume();
+    if (processingDelay) await new Promise(resolve => setTimeout(resolve, processingDelay));
     response.writeHead(processingStatus, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ text: '자동 인식 합계 12345', fields: { title: '테스트상사', date: '2026-11-22', amount: '12345.00', bizNumber: null } }));
   });
@@ -185,7 +187,20 @@ test('문서 업로드·권한·보정·작업 복구', async context => {
       processingStatus = 200;
     });
 
-    await context.test('실제 Redis 큐로 미등록 작업 복구와 작업자 재시작 후 완료', async () => {
+    await context.test('한글 장문 보정과 입력 길이 상한', async () => {
+      const current = await get(document.id);
+      const correctedText = '가'.repeat(100000);
+      const reply = await request(`documents/${document.id}/corrections`, { method: 'PATCH', access: own.staff,
+        body: { expectedRevision: current.revision, correctedText } });
+      assert.equal(reply.status, 200, JSON.stringify(reply.body.error));
+      assert.equal(reply.body.data.correctedText, correctedText);
+      error(await request(`documents/${document.id}/corrections`, { method: 'PATCH', access: own.staff,
+        body: { expectedRevision: current.revision + 1, correctedText: correctedText + '가' } }), 400);
+      assert.equal((await request(`documents/${document.id}/corrections`, { method: 'PATCH', access: own.staff,
+        body: { expectedRevision: current.revision + 1, correctedText: '실패 후 수동 보정' } })).status, 200);
+    });
+
+    await context.test('실제 Redis 큐로 미등록 작업 복구와 작업자 기동 후 완료', async () => {
       const reply = await upload(own.staff, { filename: 'queued.png' });
       assert.equal(reply.status, 201);
       const id = reply.body.data.id;
@@ -207,12 +222,57 @@ test('문서 업로드·권한·보정·작업 복구', async context => {
       assert.equal(result.body.data[0].id, document.id);
       for (const query of ['organizationId=1', 'from=2026-11-23&to=2026-11-22', 'kind=BAD', 'page=0']) error(await request(`documents?${query}`, { access: own.staff }), 400);
     });
+
+    await context.test('작업자 재시작과 일시 장애 자동 3회 재시도 후 실패 보존', async () => {
+      await worker.onModuleDestroy();
+      processingStatus = 503;
+      const reply = await upload(own.staff, { filename: 'retry.png' });
+      assert.equal(reply.status, 201);
+      await worker.onModuleInit();
+      const deadline = Date.now() + 20000;
+      let current;
+      do {
+        current = await get(reply.body.data.id);
+        if (current.status === 'FAILED') break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } while (Date.now() < deadline);
+      assert.equal(current.status, 'FAILED', JSON.stringify(current));
+      assert.equal(current.jobs[0].attempts, 3);
+      assert.ok(current.jobs[0].errorMessage);
+      processingStatus = 200;
+    });
+
+    await context.test('종료 시 진행 중 OCR 결과를 저장한 뒤 작업자 연결 종료', async () => {
+      processingDelay = 300;
+      const reply = await upload(own.staff, { filename: 'shutdown.png' });
+      await worker.dispatch();
+      const deadline = Date.now() + 5000;
+      while ((await get(reply.body.data.id)).status !== 'PROCESSING' && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.equal((await get(reply.body.data.id)).status, 'PROCESSING');
+      await worker.onModuleDestroy();
+      assert.equal((await get(reply.body.data.id)).status, 'READY');
+      processingDelay = 0;
+    });
+
+    await context.test('거래처 변경 시 연결 문서의 거래처와 수정 버전도 함께 갱신', async () => {
+      const previous = await get(document.id);
+      const partnerId = (await db.query("INSERT INTO partners (organization_id, name, is_supplier) VALUES (?, '변경 공급사', 1)", [own.id])).insertId;
+      const itemId = (await db.query("INSERT INTO items (organization_id, sku, name) VALUES (?, 'DOC-ITEM', '문서 품목')", [own.id])).insertId;
+      await db.query("INSERT INTO transaction_lines (organization_id, transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot) VALUES (?, ?, ?, 1, 1, 1, 1, 'DOC-ITEM', '문서 품목')", [own.id, own.transaction, itemId]);
+      const reply = await request(`transactions/${own.transaction}`, { method: 'PATCH', access: own.staff, body: { expectedRevision: 0, partnerId } });
+      assert.equal(reply.status, 200, JSON.stringify(reply.body));
+      const current = await get(document.id);
+      assert.equal(current.partnerId, partnerId);
+      assert.equal(current.revision, previous.revision + 1);
+    });
   }
   finally {
-    await worker.onApplicationShutdown();
+    await worker.onModuleDestroy();
     for (const { id } of companies) {
       await db.query('DELETE FROM document_jobs WHERE document_id IN (SELECT id FROM documents WHERE organization_id = ?)', [id]);
-      for (const table of ['document_edits', 'documents', 'transactions']) await db.query(`DELETE FROM ${table} WHERE organization_id = ?`, [id]);
+      for (const table of ['document_edits', 'documents', 'transaction_lines', 'transactions', 'items']) await db.query(`DELETE FROM ${table} WHERE organization_id = ?`, [id]);
       await db.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE organization_id = ?)', [id]);
       for (const table of ['partners', 'users', 'organizations']) await db.query(`DELETE FROM ${table} WHERE ${table === 'organizations' ? 'id' : 'organization_id'} = ?`, [id]);
     }

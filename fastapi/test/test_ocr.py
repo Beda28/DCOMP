@@ -16,6 +16,11 @@ class OcrTests(unittest.TestCase):
         self.assertEqual(extract(rows)["date"], "2026-11-22")
         self.assertIsNone(extract([{"text": "합계 100", "confidence": 0.2}])["amount"])
 
+    def test_malformed_ocr_amounts_are_not_accepted(self):
+        for text in ["합계 12,3452", "합계 1,23,456", "TOTAL 123.456", "합계 12,,345"]:
+            self.assertIsNone(extract([{"text": text, "confidence": 0.99}])["amount"], text)
+        self.assertEqual(extract([{"text": "합계 12,345원", "confidence": 0.99}])["amount"], "12345.00")
+
     def test_real_image_pdf_and_invalid_path(self):
         with tempfile.TemporaryDirectory() as directory:
             previous = os.environ.get("UPLOAD_DIR")

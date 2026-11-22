@@ -146,6 +146,7 @@ test('거래처·품목 등록·수정·비활성화와 직원 권한, 새로고
     await expect(staffPage.getByRole('heading', { name: '품목 상세', exact: true })).toBeVisible();
     await expect(staffPage.getByRole('navigation', { name: '메인 메뉴' })).toContainText(username);
     await staffPage.getByRole('button', { name: '로그아웃', exact: true }).click();
+    await expect(staffPage).toHaveURL('/');
     await staffPage.goto('/items');
     await expect(staffPage).toHaveURL('/login');
 

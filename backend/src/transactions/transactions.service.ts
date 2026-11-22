@@ -10,6 +10,7 @@ import { Item }               from '../items/item.entity.js';
 import { Partner }            from '../partners/partner.entity.js';
 import { TransactionLine }    from './transaction-line.entity.js';
 import { TransactionRead }    from './transaction-read.entity.js';
+import { Document }           from '../documents/document.entity.js';
 import { lineAmount, money, scaled } from './amount.js';
 
 @Injectable()
@@ -179,6 +180,11 @@ export class TransactionsService {
       await db.update(Transaction, { id, organizationId: actor.organizationId }, {
         ...fields, totalAmount: prepared.totalAmount, revision: transaction.revision + 1,
       });
+      if (fields.partnerId && fields.partnerId !== transaction.partnerId) {
+        await db.createQueryBuilder().update(Document)
+          .set({ partnerId: fields.partnerId, revision: () => 'revision + 1' })
+          .where('organization_id = :organizationId AND transaction_id = :id', { organizationId: actor.organizationId, id }).execute();
+      }
       return this.detail(db, actor, id);
     });
   }

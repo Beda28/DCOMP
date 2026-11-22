@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit, type OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
 import { Queue, Worker, UnrecoverableError, type Job } from 'bullmq';
 import { DataSource, In }       from 'typeorm';
 import { Document, type DocumentFields } from './document.entity.js';
@@ -8,12 +8,13 @@ type Work = { documentId: number; version: number };
 type OcrResult = { text: string; fields: DocumentFields };
 
 @Injectable()
-export class DocumentWorker implements OnModuleInit, OnApplicationShutdown {
+export class DocumentWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DocumentWorker.name);
   private queue?: Queue<Work>;
   private worker?: Worker<Work>;
   private timer?: ReturnType<typeof setInterval>;
   private dispatching?: Promise<void>;
+  private readonly failedWrites = new Set<Promise<void>>();
 
   constructor(private readonly database: DataSource) {}
 
@@ -32,7 +33,9 @@ export class DocumentWorker implements OnModuleInit, OnApplicationShutdown {
     this.worker.on('error', () => this.logger.error('문서 작업자 연결 오류'));
     this.worker.on('failed', (job, error) => {
       if (job && (error instanceof UnrecoverableError || job.attemptsMade >= 3 || error.message.includes('stalled'))) {
-        void this.fail(job.data, 'OCR_FAILED', '문서 처리가 중단되었습니다. 재처리해주세요.').catch(() => this.logger.error('문서 실패 상태 기록 오류'));
+        const write = this.fail(job.data, 'OCR_FAILED', '문서 처리가 중단되었습니다. 재처리해주세요.')
+          .catch(() => this.logger.error('문서 실패 상태 기록 오류')).finally(() => this.failedWrites.delete(write));
+        this.failedWrites.add(write);
       }
     });
     await this.queue.waitUntilReady();
@@ -136,10 +139,13 @@ export class DocumentWorker implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  async onModuleDestroy(): Promise<void> {
     clearInterval(this.timer);
     await this.dispatching;
     await this.worker?.close();
+    await Promise.all(this.failedWrites);
     await this.queue?.close();
+    this.worker = undefined;
+    this.queue = undefined;
   }
 }

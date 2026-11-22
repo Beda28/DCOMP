@@ -4,7 +4,7 @@ from decimal     import Decimal
 from unicodedata import normalize
 
 DATE = re.compile(r"(?<!\d)(20\d{2})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})(?:일)?(?!\d)")
-TOTAL = re.compile(r"(?:총결제금액|실결제금액|결제금액|승인금액|청구금액|총합계|합계금액|합계|총액|GRAND\s*TOTAL|AMOUNT\s*DUE|(?<!SUB)TOTAL)\s*[:：]?\s*(?:KRW|₩|\$)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.I)
+TOTAL = re.compile(r"(?:총결제금액|실결제금액|결제금액|승인금액|청구금액|총합계|합계금액|합계|총액|GRAND\s*TOTAL|AMOUNT\s*DUE|(?<!SUB)TOTAL)\s*[:：]?\s*(?:KRW|₩|\$)?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?![\d,.])", re.I)
 MERCHANT = re.compile(r"^(?:상호(?:명)?|가맹점(?:명)?|업체명|MERCHANT|STORE\s*NAME)\s*[:：]?\s*(.+)", re.I)
 BIZ = re.compile(r"(?<!\d)(\d{3})\s*-\s*(\d{2})\s*-\s*(\d{5})(?!\d)")
 

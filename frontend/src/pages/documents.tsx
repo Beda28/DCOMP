@@ -28,7 +28,7 @@ const Documents = () => {
   const [reload, setReload]   = useState(0);
   const search = params.toString();
   const page   = result?.meta.page ?? 1;
-  const pages  = Math.max(1, Math.ceil((result?.meta.total ?? 0) / 20));
+  const pages  = Math.max(1, Math.ceil((result?.meta.total ?? 0) / (result?.meta.limit ?? 20)));
 
   useEffect(() => {
     const controller = new AbortController();

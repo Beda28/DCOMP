@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 class OcrRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    storageKey: str = Field(pattern=r"^\d+/[a-f0-9-]{36}$")
-    contentType: Literal["image/png", "image/jpeg", "application/pdf"]
+    storage_key: str = Field(alias="storageKey", pattern=r"^\d+/[a-f0-9-]{36}$")
+    content_type: Literal["image/png", "image/jpeg", "application/pdf"] = Field(alias="contentType")
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 class OcrResponse(BaseModel):
@@ -19,7 +19,7 @@ class OcrResponse(BaseModel):
 
 @router.post("/ocr", response_model=OcrResponse)
 def ocr(request: OcrRequest) -> dict:
-    try: return process(request.storageKey, request.contentType, request.sha256)
+    try: return process(request.storage_key, request.content_type, request.sha256)
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=422, detail="문서 파일을 읽을 수 없습니다.") from error
     except Exception as error:

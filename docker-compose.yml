@@ -10,6 +10,7 @@ services:
 
   backend:
     build: ./backend
+    stop_grace_period: 200s
     environment:
       PORT: 3000
       DB_HOST: mysql
@@ -43,6 +44,7 @@ services:
 
   fastapi:
     build: ./fastapi
+    stop_grace_period: 180s
     volumes:
       - uploads:/app/uploads:ro
     networks:
