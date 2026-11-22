@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Header, HttpCode, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { AssignTransactionDto, CreateTransactionDto, TransactionQueryDto, UpdateTransactionDto } from './transaction.dto.js';
+import { AssignTransactionDto, CreateTransactionDto, TransactionQueryDto, TransactionStateDto, UpdateTransactionDto } from './transaction.dto.js';
 import { AuthGuard, type AuthRequest } from '../auth/auth.guard.js';
 import { OriginGuard }         from '../auth/origin.guard.js';
 import { RecordIdDto }         from '../common/catalog.dto.js';
@@ -33,9 +33,9 @@ export class TransactionsController {
 
   @Post(':id/confirm')
   @HttpCode(200)
-  confirm(@Req() request: AuthRequest, @Param() { id }: RecordIdDto) { return this.transactions.confirm(request.user, id); }
+  confirm(@Req() request: AuthRequest, @Param() { id }: RecordIdDto, @Body() body: TransactionStateDto) { return this.transactions.confirm(request.user, id, body.expectedRevision); }
 
   @Post(':id/cancel')
   @HttpCode(200)
-  cancel(@Req() request: AuthRequest, @Param() { id }: RecordIdDto) { return this.transactions.cancel(request.user, id); }
+  cancel(@Req() request: AuthRequest, @Param() { id }: RecordIdDto, @Body() body: TransactionStateDto) { return this.transactions.cancel(request.user, id, body.expectedRevision); }
 }

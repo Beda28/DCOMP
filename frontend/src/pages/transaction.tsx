@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { assignTransaction, changeTransactionStatus, getTransaction, markTransactionRead, saveTransaction, statusLabel, typeLabel, type Transaction, type TransactionInput } from '../api/transactions';
+import { assignTransaction, setStatus, getTransaction, markRead, saveTransaction, statusLabel, typeLabel, type Transaction, type TransactionInput } from '../api/transactions';
 import { Button, Field, Input, Title } from '../components/ui';
 import { Actions, Badge, Breadcrumb, Fields, Heading, Message, Results, Row, Stack, Table } from '../components/catalog.styles';
 import { authMessage }         from '../api/auth';
@@ -56,7 +56,7 @@ const TransactionPage = () => {
       .then(async value => {
         if (controller.signal.aborted) return;
         setEntry(value);
-        await markTransactionRead(value.id, controller.signal);
+        await markRead(value.id, controller.signal);
       })
       .catch(error => { if (!controller.signal.aborted) setError(authMessage(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -90,7 +90,7 @@ const TransactionPage = () => {
     setMessage('');
 
     try {
-      setEntry(await changeTransactionStatus(entry.id, action));
+      setEntry(await setStatus(entry, action));
       setDirty(false);
       setMessage(action === 'confirm' ? '거래를 확정했습니다.' : '거래를 취소했습니다.');
     }

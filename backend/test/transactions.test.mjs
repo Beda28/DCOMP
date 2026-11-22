@@ -61,7 +61,13 @@ test('거래 API·금액·상태 전이·회사 격리', async context => {
     const [own, other] = companies;
     const input = { type: 'PURCHASE', partnerId: own.partner, occurredAt: '2026-11-19', memo: '초안 %_=', lines: [{ itemId: own.item, quantity: '1.005', unitPrice: '1' }] };
     const create = (body = input, access = own.staff) => request('transactions', { method: 'POST', access, body });
-    const mutate = (id, action, access = own.staff, body) => request(`transactions/${id}${action ? `/${action}` : ''}`, { method: action ? 'POST' : 'PATCH', access, body });
+    const mutate = async (id, action, access = own.staff, body) => {
+      if (['confirm', 'cancel'].includes(action) && body === undefined) {
+        const [row] = await db.query('SELECT revision FROM transactions WHERE id = ?', [id]);
+        body = { expectedRevision: row?.revision ?? 0 };
+      }
+      return request(`transactions/${id}${action ? `/${action}` : ''}`, { method: action ? 'POST' : 'PATCH', access, body });
+    };
     const detail = async id => {
       const reply = await request(`transactions/${id}`, { access: own.staff });
       assert.equal(reply.status, 200, JSON.stringify(reply.body));
@@ -225,12 +231,29 @@ test('거래 API·금액·상태 전이·회사 격리', async context => {
       error(await mutate(transaction.id, '', own.admin, { expectedRevision: 5, memo: '변경' }), 409, 'INVALID_TRANSACTION_STATE');
     });
 
+    await context.test('예전 화면의 확정·취소와 revision 누락 차단', async () => {
+      const draft = (await create()).body.data;
+      for (const action of ['confirm', 'cancel']) {
+        for (const body of [{}, { expectedRevision: null }, { expectedRevision: '0' }, { expectedRevision: -1 }]) {
+          error(await mutate(draft.id, action, own.admin, body), 400, 'VALIDATION_ERROR');
+        }
+      }
+      assert.equal((await mutate(draft.id, '', own.staff, { expectedRevision: 0, memo: '금액 재확인' })).status, 200);
+      for (const action of ['confirm', 'cancel']) {
+        error(await mutate(draft.id, action, own.admin, { expectedRevision: 0 }), 409, 'REVISION_CONFLICT');
+        assert.equal((await detail(draft.id)).status, 'DRAFT');
+      }
+      assert.equal((await mutate(draft.id, 'cancel', own.admin, { expectedRevision: 1 })).status, 200);
+    });
+
     await context.test('초안 취소와 확정·취소 경합', async () => {
       const draft = (await create()).body.data;
-      const replies = await Promise.all([mutate(draft.id, 'confirm'), mutate(draft.id, 'cancel', own.admin)]);
-      assert.equal(replies[1].status, 200, JSON.stringify(replies));
-      assert.ok([200, 409].includes(replies[0].status));
-      assert.equal((await detail(draft.id)).status, 'CANCELED');
+      const replies = await Promise.all([
+        mutate(draft.id, 'confirm', own.staff, { expectedRevision: 0 }),
+        mutate(draft.id, 'cancel', own.admin, { expectedRevision: 0 }),
+      ]);
+      assert.deepEqual(replies.map(reply => reply.status).sort(), [200, 409]);
+      assert.equal((await detail(draft.id)).status, replies[0].status === 200 ? 'CONFIRMED' : 'CANCELED');
       const another = (await create()).body.data;
       const canceled = await mutate(another.id, 'cancel', own.admin);
       assert.equal(canceled.status, 200);

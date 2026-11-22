@@ -126,3 +126,10 @@ export class AssignTransactionDto {
   @Max(4294967295)
   assigneeId!: number;
 }
+
+export class TransactionStateDto {
+  @IsInt()
+  @Min(0)
+  @Max(4294967294)
+  expectedRevision!: number;
+}

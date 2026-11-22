@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { findChoices, type CatalogChoice } from '../api/transactions';
+import { listChoices, type Choice } from '../api/catalog';
 import { Button, Input }       from './ui';
 import { Message, Row }        from './catalog.styles';
 import { authMessage }         from '../api/auth';
@@ -28,14 +28,14 @@ type Props = {
   path: 'partners' | 'items' | 'users' | 'transactions';
   selected: string;
   role?: string;
-  onSelect: (choice: CatalogChoice) => void;
+  onSelect: (choice: Choice) => void;
 };
 
 const CatalogPicker = ({ label, path, selected, role, onSelect }: Props) => {
   const [open, setOpen]       = useState(false);
   const [query, setQuery]     = useState('');
   const [page, setPage]       = useState(1);
-  const [choices, setChoices] = useState<CatalogChoice[]>([]);
+  const [choices, setChoices] = useState<Choice[]>([]);
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -47,7 +47,7 @@ const CatalogPicker = ({ label, path, selected, role, onSelect }: Props) => {
     setError('');
 
     const timer = setTimeout(() => {
-      findChoices(path, query, page, role, controller.signal).then(result => {
+      listChoices(path, query, page, role, controller.signal).then(result => {
         if (controller.signal.aborted) return;
         setChoices(result.data);
         setTotal(result.meta.total);

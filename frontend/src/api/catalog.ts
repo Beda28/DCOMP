@@ -38,3 +38,12 @@ const catalogApi = <T, Input>(path: string) => ({
 export const partners = catalogApi<Partner, PartnerInput>('/partners');
 export const items    = catalogApi<Item, ItemInput>('/items');
 export type CatalogApi<T, Input> = ReturnType<typeof catalogApi<T, Input>>;
+
+export type Choice = { id: number; name: string; sku?: string; partnerId?: number; purchasePrice?: string | null; salePrice?: string | null };
+
+export const listChoices = async (path: 'partners' | 'items' | 'users' | 'transactions', q: string, page: number, role: string | undefined, signal: AbortSignal): Promise<ListResult<Choice>> => {
+  const result = (await client.get<ListResult<Choice & { username?: string; number?: string; partnerName?: string }>>(`/${path}`, {
+    params: { q, page, role, status: path === 'transactions' ? undefined : 'ACTIVE', limit: 10 }, signal,
+  })).data;
+  return { ...result, data: result.data.map(choice => ({ ...choice, name: choice.number ? `${choice.number} · ${choice.partnerName}` : choice.username ?? choice.name })) };
+};

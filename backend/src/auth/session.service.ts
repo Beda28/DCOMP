@@ -1,6 +1,6 @@
 import { Injectable }         from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { DataSource, IsNull, MoreThan } from 'typeorm';
+import { DataSource, IsNull }  from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import { AuthSession }        from './auth-session.entity.js';
 import { User }               from './user.entity.js';
@@ -81,11 +81,5 @@ export class SessionService {
     });
 
     if (!active) throw apiError(401, 'SESSION_REVOKED', '이미 종료된 세션입니다.');
-  }
-
-  async active(userId: number, familyId: string): Promise<boolean> {
-    return this.database.getRepository(AuthSession).existsBy({
-      userId, familyId, revokedAt: IsNull(), expiresAt: MoreThan(new Date()),
-    });
   }
 }

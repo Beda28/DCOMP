@@ -10,6 +10,7 @@ import { User, type Profile } from './user.entity.js';
 import { verify }             from './password.js';
 import type { LoginDto }      from './auth.dto.js';
 import { Organization }       from '../organizations/organization.entity.js';
+import { AuthSession }        from './auth-session.entity.js';
 
 type AccessClaims = { sub: string; sid: string; jti: string; type: string; exp: number };
 
@@ -80,10 +81,14 @@ export class AuthService {
     return this.store(async () => {
       if (await this.redis.accessDenied(data.jti)) throw apiError(401, 'UNAUTHORIZED', '종료된 세션입니다.');
 
-      const user         = await this.users.findOneBy({ id: Number(data.sub) });
-      const active       = await this.sessions.active(Number(data.sub), data.sid);
-      const organization = user ? await this.organizations.findOneBy({ id: user.organizationId, status: 'ACTIVE' }) : null;
-      if (!user || user.status !== 'ACTIVE' || !active || !organization) throw apiError(401, 'UNAUTHORIZED', '다시 로그인해주세요.');
+      const user = await this.users.createQueryBuilder('user')
+        .innerJoin(Organization, 'company', 'company.id = user.organization_id AND company.status = :status')
+        .where('user.id = :id AND user.status = :status', { id: Number(data.sub), status: 'ACTIVE' })
+        .andWhere(query => `EXISTS ${query.subQuery().select('1').from(AuthSession, 'session')
+          .where('session.user_id = user.id AND session.family_id = :family')
+          .andWhere('session.revoked_at IS NULL AND session.expires_at > :now').getQuery()}`,
+        { family: data.sid, now: new Date() }).getOne();
+      if (!user) throw apiError(401, 'UNAUTHORIZED', '다시 로그인해주세요.');
       return { id: user.id, organizationId: user.organizationId, username: user.username, role: user.role, status: user.status };
     });
   }

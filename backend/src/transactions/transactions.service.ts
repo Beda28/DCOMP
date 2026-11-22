@@ -33,9 +33,9 @@ export class TransactionsService {
 
   private query(db: EntityManager, actor: Profile) {
     const builder = db.createQueryBuilder(Transaction, 'transaction')
-      .leftJoinAndSelect('transaction.partner', 'partner')
-      .leftJoinAndSelect('transaction.creator', 'creator')
-      .leftJoinAndSelect('transaction.assignee', 'assignee')
+      .leftJoin('transaction.partner', 'partner').addSelect(['partner.id', 'partner.name'])
+      .leftJoin('transaction.creator', 'creator').addSelect(['creator.id', 'creator.username'])
+      .leftJoin('transaction.assignee', 'assignee').addSelect(['assignee.id', 'assignee.username'])
       .leftJoinAndMapOne('transaction.read', TransactionRead, 'read',
         'read.organization_id = transaction.organization_id AND read.transaction_id = transaction.id AND read.user_id = :userId', { userId: actor.id })
       .where('transaction.organization_id = :organizationId', { organizationId: actor.organizationId });
@@ -189,10 +189,11 @@ export class TransactionsService {
     });
   }
 
-  async confirm(actor: Profile, id: number) {
+  async confirm(actor: Profile, id: number, revision: number) {
     return this.database.transaction(async db => {
       const transaction = await this.find(db, actor, id, true);
       if (transaction.status !== 'DRAFT') throw apiError(409, 'INVALID_TRANSACTION_STATE', '초안 상태의 거래만 확정할 수 있습니다.');
+      if (transaction.revision !== revision) throw apiError(409, 'REVISION_CONFLICT', '다른 사용자가 수정한 거래입니다. 새로 불러온 뒤 다시 확정해주세요.');
 
       await this.partner(db, actor.organizationId, transaction.partnerId, transaction.type);
       const lines = await db.find(TransactionLine, { where: { transactionId: id, organizationId: actor.organizationId }, order: { position: 'ASC' } });
@@ -206,11 +207,12 @@ export class TransactionsService {
     });
   }
 
-  async cancel(actor: Profile, id: number) {
+  async cancel(actor: Profile, id: number, revision: number) {
     return this.database.transaction(async db => {
       const transaction = await this.find(db, actor, id, true);
       if (actor.role !== 'ADMIN') throw apiError(403, 'FORBIDDEN', '거래 취소는 관리자만 할 수 있습니다.');
       if (transaction.status === 'CANCELED') throw apiError(409, 'INVALID_TRANSACTION_STATE', '이미 취소된 거래입니다.');
+      if (transaction.revision !== revision) throw apiError(409, 'REVISION_CONFLICT', '다른 사용자가 수정한 거래입니다. 새로 불러온 뒤 다시 취소해주세요.');
 
       await db.update(Transaction, { id, organizationId: actor.organizationId, status: transaction.status }, {
         status: 'CANCELED', canceledAt: new Date(), revision: transaction.revision + 1,

@@ -1,7 +1,8 @@
 import { useState, type SubmitEvent } from 'react';
-import type { CatalogChoice, Transaction, TransactionInput, TransactionType } from '../api/transactions';
+import type { Transaction, TransactionInput, TransactionType } from '../api/transactions';
 import { Button, Field, Input } from './ui';
 import { Actions, Fields, Message, Row, SectionTitle, Select, Stack } from './catalog.styles';
+import type { Choice }          from '../api/catalog';
 import CatalogPicker            from './catalog-picker';
 import FormattedInput           from './formatted-input';
 import styled                   from 'styled-components';
@@ -49,7 +50,7 @@ const TransactionForm = ({ entry, pending, onSave, onDirty }: Props) => {
   })) ?? [newLine()]);
   const [error, setError] = useState('');
 
-  const chooseItem = (key: string, item: CatalogChoice): void => {
+  const chooseItem = (key: string, item: Choice): void => {
     setLines(values => values.map(line => line.key === key ? {
       ...line, itemId: item.id, name: `${item.name} · ${item.sku}`,
       unitPrice: (type === 'PURCHASE' ? item.purchasePrice : item.salePrice) ?? '',

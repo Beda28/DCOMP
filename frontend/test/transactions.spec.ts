@@ -147,7 +147,7 @@ test('직원 거래 작성·확정과 취소 차단·다른 회사 거래 접근
     await expect(staffPage.getByRole('button', { name: '거래 취소', exact: true })).toHaveCount(0);
     await staffPage.getByRole('button', { name: '거래 확정', exact: true }).click();
     await expect(staffPage.getByRole('status')).toHaveText('거래를 확정했습니다.');
-    const denied = await staffPage.request.post(`${baseURL}/api/v1/transactions/${id}/cancel`, { headers: { ...headers, Authorization: `Bearer ${staffToken}` } });
+    const denied = await staffPage.request.post(`${baseURL}/api/v1/transactions/${id}/cancel`, { headers: { ...headers, Authorization: `Bearer ${staffToken}` }, data: { expectedRevision: 0 } });
     expect(denied.status()).toBe(403);
 
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
@@ -200,7 +200,7 @@ test('담당 직원별 접근 제한·관리자 재배정·미열람 표시', as
     await expect(second.getByRole('alert')).toHaveText('거래를 찾을 수 없습니다.');
     await expect(second.getByRole('button', { name: '초안 저장', exact: true })).toHaveCount(0);
     expect((await second.request.post(`${baseURL}/api/v1/transactions/${entry.id}/confirm`, {
-      headers: { ...headers, Authorization: `Bearer ${secondToken}` },
+      headers: { ...headers, Authorization: `Bearer ${secondToken}` }, data: { expectedRevision: 0 },
     })).status()).toBe(404);
 
     await page.goto(`/transactions/${entry.id}`);
