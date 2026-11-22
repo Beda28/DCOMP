@@ -154,7 +154,7 @@ test('거래처·품목 API와 권한, 데이터 보존', async context => {
     });
 
     await context.test('역할·품목 수정과 비활성화 후 거래 스냅샷·문서 연결 보존', async () => {
-      transaction = (await db.query("INSERT INTO transactions (organization_id, number, partner_id, created_by, type, occurred_at) VALUES (?, 'CATALOG-HISTORY', ?, ?, 'SALE', '2026-11-18')", [organizationId, partner.id, users[0]])).insertId;
+      transaction = (await db.query("INSERT INTO transactions (organization_id, number, partner_id, created_by, assignee_id, type, occurred_at) VALUES (?, '0123456789abcdef', ?, ?, ?, 'SALE', '2026-11-18')", [organizationId, partner.id, users[0], users[0]])).insertId;
       await db.query(`INSERT INTO transaction_lines (organization_id, transaction_id, item_id, position, quantity, unit_price, line_amount, item_sku_snapshot, item_name_snapshot)
         VALUES (?, ?, ?, 1, '2', '5.01', '10.02', ?, ?)`, [organizationId, transaction, item.id, item.sku, item.name]);
       document = (await db.query(`INSERT INTO documents (organization_id, partner_id, transaction_id, uploaded_by, kind, original_filename, content_type, size_bytes, storage_key, sha256)

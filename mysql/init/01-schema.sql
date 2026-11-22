@@ -87,9 +87,10 @@ CREATE TABLE items (
 CREATE TABLE transactions (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   organization_id INT UNSIGNED NOT NULL,
-  number VARCHAR(48) NOT NULL,
+  number CHAR(16) COLLATE utf8mb4_bin NOT NULL,
   partner_id INT UNSIGNED NOT NULL,
   created_by INT UNSIGNED NOT NULL,
+  assignee_id INT UNSIGNED NOT NULL,
   type ENUM('PURCHASE','SALE') NOT NULL,
   occurred_at DATE NOT NULL,
   status ENUM('DRAFT','CONFIRMED','CANCELED') NOT NULL DEFAULT 'DRAFT',
@@ -104,13 +105,28 @@ CREATE TABLE transactions (
   UNIQUE KEY uq_transactions_number (organization_id, number),
   KEY ix_transactions_partner_date (organization_id, partner_id, occurred_at),
   KEY ix_transactions_type_status_date (organization_id, type, status, occurred_at),
+  KEY ix_transactions_assignee_date (organization_id, assignee_id, occurred_at),
   CONSTRAINT fk_transactions_partner FOREIGN KEY (organization_id, partner_id)
     REFERENCES partners(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT fk_transactions_user FOREIGN KEY (organization_id, created_by)
     REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_transactions_assignee FOREIGN KEY (organization_id, assignee_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT ck_transactions_number CHECK (number REGEXP '^[0-9a-f]{16}$'),
   CONSTRAINT ck_transactions_total CHECK (total_amount >= 0),
   CONSTRAINT fk_transactions_organization FOREIGN KEY (organization_id)
     REFERENCES organizations(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE transaction_reads (
+  organization_id INT UNSIGNED NOT NULL,
+  transaction_id INT UNSIGNED NOT NULL,
+  user_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (organization_id, transaction_id, user_id),
+  CONSTRAINT fk_transaction_reads_transaction FOREIGN KEY (organization_id, transaction_id)
+    REFERENCES transactions(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_transaction_reads_user FOREIGN KEY (organization_id, user_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE transaction_lines (

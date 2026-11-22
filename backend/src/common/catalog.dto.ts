@@ -7,7 +7,7 @@ export const nullableText = ({ value }: { value: unknown }): unknown => (
   typeof value === 'string' ? value.trim() || null : value
 );
 
-const integer = ({ value }: { value: unknown }): unknown => (
+export const integer = ({ value }: { value: unknown }): unknown => (
   typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value
 );
 

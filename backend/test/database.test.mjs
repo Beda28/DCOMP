@@ -7,7 +7,7 @@ if (process.env.DB_NAME !== 'dcomp_test') throw new Error('전용 dcomp_test DB�
 
 const tables = [
   'organizations', 'users', 'auth_sessions', 'partners', 'items', 'transactions',
-  'transaction_lines', 'documents', 'document_jobs', 'document_edits',
+  'transaction_reads', 'transaction_lines', 'documents', 'document_jobs', 'document_edits',
 ];
 
 test('MySQL 초기 스키마와 데이터 제약', async context => {
@@ -21,7 +21,7 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
   );
 
   try {
-    await context.test('초기 SQL로 생성된 10개 테이블과 UTC 설정', async () => {
+    await context.test('초기 SQL로 생성된 11개 테이블과 UTC 설정', async () => {
       const rows = await database.query(`
         SELECT TABLE_NAME AS name, TABLE_COLLATION AS collation, ENGINE AS engine
         FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()
@@ -43,9 +43,9 @@ test('MySQL 초기 스키마와 데이터 제약', async context => {
     const item = await insert(`INSERT INTO items (organization_id, sku, name, sale_price) VALUES (${organizationId}, ?, ?, ?)`, ['ITEM-001', '원래 품목명', '0.04']);
     const otherItem = await insert(`INSERT INTO items (organization_id, sku, name) VALUES (${organizationId}, ?, ?)`, ['ITEM-002', '다른 품목']);
     const transaction = await insert(`
-      INSERT INTO transactions (organization_id, number, partner_id, created_by, type, occurred_at)
-      VALUES (${organizationId}, 'TRX-TEST-001', ?, ?, 'PURCHASE', '2026-11-18')
-    `, [partner, user]);
+      INSERT INTO transactions (organization_id, number, partner_id, created_by, assignee_id, type, occurred_at)
+      VALUES (${organizationId}, '0123456789abcdef', ?, ?, ?, 'PURCHASE', '2026-11-18')
+    `, [partner, user, user]);
 
     await context.test('계정 아이디·Refresh 해시 중복 차단, 세션 계열 내 토큰 회전 허용', async () => {
       await rejects(`INSERT INTO users (organization_id, username, password_hash) VALUES (${organizationId}, ?, ?)`, ['ADMIN', 'hash'], 'ER_DUP_ENTRY');

@@ -47,7 +47,7 @@ export const removeCompany = (id: number): void => {
           const [company] = await manager.query('SELECT name FROM organizations WHERE id = ?', [${id}]);
           if (!company?.name.startsWith('e2e_')) throw new Error('테스트 회사만 삭제할 수 있습니다.');
           await manager.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE organization_id = ?)', [${id}]);
-          for (const table of ['partners', 'items', 'users']) await manager.query('DELETE FROM ' + table + ' WHERE organization_id = ?', [${id}]);
+          for (const table of ['transaction_reads', 'transaction_lines', 'transactions', 'partners', 'items', 'users']) await manager.query('DELETE FROM ' + table + ' WHERE organization_id = ?', [${id}]);
           await manager.query('DELETE FROM organizations WHERE id = ?', [${id}]);
         });
       }

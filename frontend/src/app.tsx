@@ -12,6 +12,8 @@ import Login                    from './pages/login';
 import Start                    from './pages/start';
 import Company                  from './pages/company';
 import Health                   from './pages/health';
+import Transactions             from './pages/transactions';
+import Transaction              from './pages/transaction';
 import { Page }                 from './app.styles';
 
 const App = () => {
@@ -27,7 +29,7 @@ const App = () => {
   return (
     <>
       <Header />
-      <Page $wide={pathname.startsWith('/partners') || pathname.startsWith('/items') || pathname.startsWith('/settings/users')}>
+      <Page $wide={['/partners', '/items', '/transactions', '/settings/users'].some(path => pathname.startsWith(path))}>
         {error && <p role="alert">{error}</p>}
         <Routes>
           <Route path="/"       element={<Home />} />
@@ -45,6 +47,8 @@ const App = () => {
             <Route path="/partners/:id" element={<Partners />} />
             <Route path="/items"        element={<Items />} />
             <Route path="/items/:id"    element={<Items />} />
+            <Route path="/transactions"     element={<Transactions />} />
+            <Route path="/transactions/:id" element={<Transaction />} />
           </Route>
           <Route path="*" element={<><h1>페이지를 찾을 수 없습니다.</h1><Link to="/">메인으로</Link></>} />
         </Routes>
