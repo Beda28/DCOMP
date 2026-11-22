@@ -123,6 +123,7 @@ const TransactionPage = () => {
       <Heading>
         <div><Title>{creating ? '거래 등록' : '거래 상세'}</Title><p>{creating ? '매입·매출 거래를 초안으로 저장합니다.' : '초안을 수정하거나 거래 상태를 변경합니다.'}</p></div>
         <Row>
+          {entry && <Button as={Link} to={`/documents?transactionId=${entry.id}`} $variant="secondary">연결 문서</Button>}
           {!creating && <Button $variant="secondary" disabled={pending || loading} onClick={reload}>다시 불러오기</Button>}
           <Button as={Link} to="/transactions" $variant="secondary">목록</Button>
         </Row>

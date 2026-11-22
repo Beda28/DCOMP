@@ -17,7 +17,7 @@ export type TransactionSummary = {
   createdBy: number; creatorName: string; assigneeId: number; assigneeName: string; isUnread: boolean;
 };
 export type Transaction = TransactionSummary & { lines: TransactionLine[] };
-export type CatalogChoice = { id: number; name: string; sku?: string; purchasePrice?: string | null; salePrice?: string | null };
+export type CatalogChoice = { id: number; name: string; sku?: string; partnerId?: number; purchasePrice?: string | null; salePrice?: string | null };
 
 export const typeLabel = { PURCHASE: '매입', SALE: '매출' };
 export const statusLabel = { DRAFT: '초안', CONFIRMED: '확정', CANCELED: '취소' };
@@ -49,9 +49,9 @@ export const markTransactionRead = async (id: number, signal?: AbortSignal): Pro
   await client.post(`/transactions/${id}/read`, undefined, { signal });
 };
 
-export const findChoices = async (path: 'partners' | 'items' | 'users', q: string, page: number, role: string | undefined, signal: AbortSignal): Promise<ListResult<CatalogChoice>> => {
-  const result = (await client.get<ListResult<CatalogChoice & { username?: string }>>(`/${path}`, {
-    params: { q, page, role, status: 'ACTIVE', limit: 10 }, signal,
+export const findChoices = async (path: 'partners' | 'items' | 'users' | 'transactions', q: string, page: number, role: string | undefined, signal: AbortSignal): Promise<ListResult<CatalogChoice>> => {
+  const result = (await client.get<ListResult<CatalogChoice & { username?: string; number?: string; partnerName?: string }>>(`/${path}`, {
+    params: { q, page, role, status: path === 'transactions' ? undefined : 'ACTIVE', limit: 10 }, signal,
   })).data;
-  return { ...result, data: result.data.map(choice => ({ ...choice, name: choice.username ?? choice.name })) };
+  return { ...result, data: result.data.map(choice => ({ ...choice, name: choice.number ? `${choice.number} · ${choice.partnerName}` : choice.username ?? choice.name })) };
 };

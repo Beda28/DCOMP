@@ -25,7 +25,7 @@ const Choices = styled.div`
 
 type Props = {
   label: string;
-  path: 'partners' | 'items' | 'users';
+  path: 'partners' | 'items' | 'users' | 'transactions';
   selected: string;
   role?: string;
   onSelect: (choice: CatalogChoice) => void;

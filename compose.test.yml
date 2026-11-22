@@ -33,6 +33,7 @@ services:
       JWT_SECRET: test-only-secret-with-at-least-32-characters
       APP_ORIGIN: http://localhost
       COOKIE_SECURE: "false"
+      DOCUMENT_WORKER_ENABLED: "false"
     depends_on:
       mysql:
         condition: service_healthy

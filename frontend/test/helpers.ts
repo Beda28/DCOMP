@@ -41,15 +41,23 @@ export const removeCompany = (id: number): void => {
     input: `
       import { DataSource } from 'typeorm';
       import { databaseOptions } from './dist/database/database.config.js';
+      import { StorageService } from './dist/documents/storage.service.js';
       const db = await new DataSource(databaseOptions).initialize();
       try {
+        let files = [];
         await db.transaction(async manager => {
           const [company] = await manager.query('SELECT name FROM organizations WHERE id = ?', [${id}]);
           if (!company?.name.startsWith('e2e_')) throw new Error('테스트 회사만 삭제할 수 있습니다.');
+          files = await manager.query('SELECT storage_key FROM documents WHERE organization_id = ?', [${id}]);
+          await manager.query('DELETE FROM document_jobs WHERE document_id IN (SELECT id FROM documents WHERE organization_id = ?)', [${id}]);
+          await manager.query('DELETE FROM document_edits WHERE organization_id = ?', [${id}]);
+          await manager.query('DELETE FROM documents WHERE organization_id = ?', [${id}]);
           await manager.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE organization_id = ?)', [${id}]);
           for (const table of ['transaction_reads', 'transaction_lines', 'transactions', 'partners', 'items', 'users']) await manager.query('DELETE FROM ' + table + ' WHERE organization_id = ?', [${id}]);
           await manager.query('DELETE FROM organizations WHERE id = ?', [${id}]);
         });
+        const storage = new StorageService();
+        for (const file of files) await storage.remove(file.storage_key);
       }
       finally { await db.destroy(); }
     `,
