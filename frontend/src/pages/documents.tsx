@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { documentStatusLabel, kindLabel, listDocuments, type DocumentSummary } from '../api/documents';
 import type { ListResult } from '../api/catalog';
 import { authMessage }     from '../api/auth';
+import { processingEnabled } from '../config';
 import { Button, Card, Field, Input, Title } from '../components/ui';
 import { Badge, Breadcrumb, Empty, EntryLink, Heading, Message, Pagination, ResultHeader, Results, Row, Select, Stack, Table } from '../components/catalog.styles';
 import styled from 'styled-components';
@@ -32,13 +33,28 @@ const Documents = () => {
 
   useEffect(() => {
     const controller = new AbortController();
+    const query = new URLSearchParams(search);
+    if (!processingEnabled && query.has('status')) {
+      query.delete('status');
+      setParams(query, { replace: true });
+      return;
+    }
     setLoading(true); setError(''); setResult(null);
-    listDocuments(new URLSearchParams(search), controller.signal)
-      .then(value => { if (!controller.signal.aborted) setResult(value); })
+    listDocuments(query, controller.signal)
+      .then(value => {
+        if (controller.signal.aborted) return;
+        const last = Math.max(1, Math.ceil(value.meta.total / value.meta.limit));
+        if (value.meta.page > last) {
+          query.set('page', String(last));
+          setParams(query, { replace: true });
+          return;
+        }
+        setResult(value);
+      })
       .catch(error => { if (!controller.signal.aborted) setError(authMessage(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [search, reload]);
+  }, [search, reload, setParams]);
 
   const filter = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -55,31 +71,37 @@ const Documents = () => {
     const next = new URLSearchParams(params); next.set('page', String(page)); setParams(next);
   };
 
+  const clearLinks = (): void => {
+    const next = new URLSearchParams(params);
+    for (const key of ['transactionId', 'partnerId', 'page']) next.delete(key);
+    setParams(next);
+  };
+
   return <Stack>
     <Breadcrumb><Link to="/">홈</Link><span>/</span><span>문서</span></Breadcrumb>
-    <Heading><div><Title>문서 관리</Title><p>문서 원본과 인식 결과를 확인하고 거래에 연결합니다.</p></div>
-      <Row><Button $variant="secondary" onClick={() => setReload(value => value + 1)}>새로고침</Button><Button as={Link} to="/documents/new">문서 업로드</Button></Row>
+    <Heading><div><Title>문서 관리</Title><p>업로드한 문서 원본과 거래 연결 정보를 확인합니다.</p></div>
+      <Row><Button $variant="secondary" disabled={loading} onClick={() => setReload(value => value + 1)}>새로고침</Button><Button as={Link} to="/documents/new">문서 업로드</Button></Row>
     </Heading>
     <Card><Filters key={search} onSubmit={filter}>
       <Field>검색<Input name="q" maxLength={160} defaultValue={params.get('q') ?? ''} placeholder="파일명 · 문서 내용" /></Field>
       <Field>문서 종류<Select name="kind" defaultValue={params.get('kind') ?? ''}><option value="">전체</option>{Object.entries(kindLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
-      <Field>처리 상태<Select name="status" defaultValue={params.get('status') ?? ''}><option value="">전체</option>{Object.entries(documentStatusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
+      {processingEnabled && <Field>처리 상태<Select name="status" defaultValue={params.get('status') ?? ''}><option value="">전체</option>{Object.entries(documentStatusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>}
       <Field>업로드 시작일<Input type="date" name="from" defaultValue={params.get('from') ?? ''} /></Field>
       <Field>업로드 종료일<Input type="date" name="to" defaultValue={params.get('to') ?? ''} /></Field>
       <input type="hidden" name="transactionId" value={params.get('transactionId') ?? ''} />
       <input type="hidden" name="partnerId" value={params.get('partnerId') ?? ''} />
-      <Button $variant="secondary">검색</Button>
-      {(params.has('transactionId') || params.has('partnerId')) && <Button type="button" $variant="secondary" onClick={() => setParams({})}>연결 필터 해제</Button>}
+      <Row><Button $variant="secondary" disabled={loading}>검색</Button><Button type="button" $variant="secondary" onClick={() => { setParams({}); setReload(value => value + 1); }}>초기화</Button></Row>
+      {(params.has('transactionId') || params.has('partnerId')) && <Row><span>연결된 문서만 조회 중입니다.</span><Button type="button" $variant="secondary" onClick={clearLinks}>연결 필터 해제</Button></Row>}
     </Filters></Card>
     {error && <Message $error role="alert">{error}</Message>}
     {loading && <p role="status">불러오는 중...</p>}
     {result && <Results>
       <ResultHeader><h2>문서 목록</h2><span>총 {result.meta.total}건</span></ResultHeader>
       {result.data.length ? <Scroll><Table>
-        <thead><tr><th>파일명</th><th>종류</th><th>처리 상태</th><th>업로드일</th></tr></thead>
+        <thead><tr><th>파일명</th><th>종류</th>{processingEnabled && <th>처리 상태</th>}<th>업로드일</th></tr></thead>
         <tbody>{result.data.map(entry => <tr key={entry.id}>
           <td><EntryLink to={`/documents/${entry.id}`}>{entry.originalFilename}</EntryLink></td>
-          <td>{kindLabel[entry.kind]}</td><td><Badge $active={entry.status === 'READY'}>{documentStatusLabel[entry.status]}</Badge></td>
+          <td>{kindLabel[entry.kind]}</td>{processingEnabled && <td><Badge $active={entry.status === 'READY'}>{documentStatusLabel[entry.status]}</Badge></td>}
           <td>{new Date(entry.createdAt).toLocaleDateString('ko-KR')}</td>
         </tr>)}</tbody>
       </Table></Scroll> : <Empty><p>조회 결과가 없습니다.</p></Empty>}

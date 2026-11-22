@@ -5,7 +5,7 @@ import type { ListResult }       from '../api/catalog';
 import { authMessage }           from '../api/auth';
 import { useSession }            from '../api/session';
 import { Button, Card, Field, Input, Title } from '../components/ui';
-import { Badge, Breadcrumb, Empty, EntryLink, Heading, Message, Pagination, ResultHeader, Results, Select, Stack, Table } from '../components/catalog.styles';
+import { Badge, Breadcrumb, Empty, EntryLink, Heading, Message, Pagination, ResultHeader, Results, Row, Select, Stack, Table } from '../components/catalog.styles';
 import styled                    from 'styled-components';
 
 const Filters = styled.form<{ $admin: boolean }>`
@@ -14,10 +14,10 @@ const Filters = styled.form<{ $admin: boolean }>`
   align-items: end;
   gap: 16px;
   > label:first-child { grid-column: span 2; }
-  > button { grid-column: ${({ $admin }) => $admin ? 'auto' : 'span 2'}; }
+  > div { grid-column: ${({ $admin }) => $admin ? 'auto' : 'span 2'}; }
   @media (max-width: 900px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    > label:first-child, > button { grid-column: 1 / -1; }
+    > label:first-child, > div { grid-column: 1 / -1; }
   }
   @media (max-width: 600px) { grid-template-columns: minmax(0, 1fr); }
 `;
@@ -38,6 +38,7 @@ const Transactions = () => {
   const [result, setResult]   = useState<ListResult<TransactionSummary> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const [reload, setReload]   = useState(0);
 
   const search = params.toString();
   const page   = result?.meta.page ?? 1;
@@ -49,24 +50,35 @@ const Transactions = () => {
     setError('');
     setResult(null);
 
-    listTransactions(new URLSearchParams(search), controller.signal)
-      .then(value => { if (!controller.signal.aborted) setResult(value); })
+    const query = new URLSearchParams(search);
+    listTransactions(query, controller.signal)
+      .then(value => {
+        if (controller.signal.aborted) return;
+        const last = Math.max(1, Math.ceil(value.meta.total / value.meta.limit));
+        if (value.meta.page > last) {
+          query.set('page', String(last));
+          setParams(query, { replace: true });
+          return;
+        }
+        setResult(value);
+      })
       .catch(error => { if (!controller.signal.aborted) setError(authMessage(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
 
     return () => controller.abort();
-  }, [search]);
+  }, [search, reload, setParams]);
 
   const filter = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const next = new URLSearchParams();
-    for (const key of ['q', 'type', 'status', 'from', 'to', 'assigneeId']) {
+    for (const key of ['q', 'type', 'status', 'from', 'to', 'assigneeId', 'partnerId']) {
       const value = String(data.get(key) ?? '').trim();
       if (value) next.set(key, value);
     }
 
     setParams(next);
+    setReload(value => value + 1);
   };
 
   const changePage = (page: number): void => {
@@ -80,7 +92,7 @@ const Transactions = () => {
       <Breadcrumb aria-label="현재 위치"><Link to="/">홈</Link><span>/</span><span>거래</span></Breadcrumb>
       <Heading>
         <div><Title>매입·매출</Title><p>거래 초안을 작성하고 확정·취소 이력을 확인합니다.</p></div>
-        <Button as={Link} to="/transactions/new">거래 등록</Button>
+        <Row><Button $variant="secondary" disabled={loading} onClick={() => setReload(value => value + 1)}>새로고침</Button><Button as={Link} to="/transactions/new">거래 등록</Button></Row>
       </Heading>
       <Card>
         <Filters key={search} $admin={user?.role === 'ADMIN'} onSubmit={filter}>
@@ -96,7 +108,9 @@ const Transactions = () => {
           {user?.role === 'ADMIN' && <Field>담당 범위<Select name="assigneeId" defaultValue={params.get('assigneeId') ?? ''}>
             <option value="">전체</option><option value={user.id}>내 담당</option>
           </Select></Field>}
-          <Button $variant="secondary">검색</Button>
+          <input type="hidden" name="partnerId" value={params.get('partnerId') ?? ''} />
+          {params.has('partnerId') && <p>선택한 거래처의 거래만 조회 중입니다.</p>}
+          <Row><Button $variant="secondary" disabled={loading}>검색</Button><Button type="button" $variant="secondary" onClick={() => { setParams({}); setReload(value => value + 1); }}>초기화</Button></Row>
         </Filters>
       </Card>
       {error && <Message $error role="alert">{error}</Message>}
